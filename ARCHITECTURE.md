@@ -2,13 +2,13 @@
 
 Full system architecture for Helix Division. This document is the long-form reference; [README.md](./README.md) is the quick-start, [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) is the onboarding doc for a new session, [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) covers visual tokens/components, [PROJECT_RULES.md](./PROJECT_RULES.md) covers engineering conventions, [API.md](./API.md) covers Server Actions/Repository/Service/PaymentProvider contracts, [ROADMAP.md](./ROADMAP.md) covers everything not yet built.
 
-**Status**: Phases 1–5 complete (engineering foundation, design system, homepage, shop catalog, cart & checkout). No reachable database yet — see [§ Data & Persistence](#data--persistence-no-reachable-database-yet). Next phases (Auth, Accounts, Admin, CMS, real Prisma, real payment integrations) are in [ROADMAP.md](./ROADMAP.md).
+**Status**: Phases 1–6 complete (engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration). A real Postgres database (hosted on Neon) is now live and is the single source of truth for the catalog and orders — see [§ Data & Persistence](#data--persistence-a-real-database). Next phase is Authentication & Authorization; see [ROADMAP.md](./ROADMAP.md) for the full remaining order (reordered so Real Prisma Integration lands before Auth/Accounts/Admin, so none of those get built against a throwaway in-memory store).
 
 ## Guiding Constraints
 
 1. **Payments are provider-agnostic.** The decided production trio is **Wise, NOW Payments, Coinbase Commerce**; Bitcoin(BTCPay)/Stripe/Authorize.net remain registered as optional/example adapters, not primary. The checkout/order layer must not hard-depend on any one of them. See [§ Payment Architecture](#payment-architecture) and [API.md](./API.md#payment-provider-interface).
 2. **Product taxonomy is data, not code.** Categories (research peptides, SARMs, lab supplies, accessories, merch) are rows, not routes or schema branches. See [§ Product & Catalog Model](#product--catalog-model).
-3. **Persistence is behind repository/service interfaces, never inline in pages.** There has never been a reachable database in this project. Both the catalog (read-only) and orders (read/write) are built against real interfaces with static/in-memory implementations today, engineered so a Prisma-backed implementation swaps in later without touching pages, components, or Server Actions. See [§ Repository Architecture](#repository-architecture) and [§ Service Layer Architecture](#service-layer-architecture).
+3. **Persistence is behind repository/service interfaces, never inline in pages.** Both the catalog (read-only) and orders (read/write) are built against real interfaces — `OrderRepository`, the catalog query functions — with a Prisma-backed implementation live now, engineered from day one (while there was still no database) so the swap touched only the implementation, never pages, components, or Server Actions. See [§ Repository Architecture](#repository-architecture) and [§ Service Layer Architecture](#service-layer-architecture).
 4. **Branding is a separate layer from UI components** so the visual identity can evolve without touching component logic.
 
 ## Folder Structure
@@ -32,15 +32,15 @@ helix-division/
 │   ├── hooks/{useCart.ts, useCheckout.ts, useBreakpoint.ts, useScroll.ts, useTheme.ts, useDisclosure.ts, useDebounce.ts, useMediaQuery.ts}
 │   ├── lib/
 │   │   ├── db.ts, auth.ts, env.ts, utils.ts, analytics.ts
-│   │   ├── catalog.ts              # client-safe catalog reads (see §Client/Server Split)
-│   │   ├── shipping-config.ts      # client-safe shipping constants (same split)
-│   │   ├── stock-status.ts, data/catalog-data.ts  # static catalog data source
+│   │   ├── catalog.ts              # Prisma-backed catalog reads, server-only (see §Client/Server Split)
+│   │   ├── shipping-config.ts      # client-safe shipping constants
+│   │   ├── stock-status.ts, data/catalog-data.ts  # catalog-data.ts is bootstrap-only — see §Data & Persistence
 │   │   ├── validations/checkout.ts # zod schemas
 │   │   └── payments/{provider.ts, types.ts, provider-labels.ts, adapters/}
 │   ├── server/
-│   │   ├── actions/checkout.ts     # "use server" — createOrderAction, confirmPaymentSentAction
+│   │   ├── actions/{checkout.ts, catalog.ts}   # "use server" — createOrderAction, confirmPaymentSentAction, getRecentlyViewedProductsAction
 │   │   ├── services/               # catalog.ts, orders.ts, shipping.ts, tax.ts, discounts.ts, inventory.ts, notifications.ts
-│   │   └── repositories/order-repository.ts   # the ONLY file touching order storage directly
+│   │   └── repositories/order-repository.ts   # PrismaOrderRepository — the ONLY file touching order storage directly
 │   ├── store/{cart-store.ts, ui-store.ts, recently-viewed-store.ts}
 │   ├── types/{catalog.ts, next-auth.d.ts, ...}
 │   └── config/{site.ts, nav.ts}
@@ -66,28 +66,34 @@ Route groups `(marketing)`, `(shop)`, `(account)`, `(admin)` share layouts witho
 
 ## Client/Server Split for Read Modules
 
-A recurring pattern, used twice so far: when a data-reading module's underlying source is static (no real I/O), split it into a client-safe pure-function file plus a server-service re-export, so client components can read data without ever importing from `src/server/**`.
+Both `lib/catalog.ts` and the order repository are Prisma-backed now, which means they import `@/lib/db` (the Prisma client + `pg` driver) — code that cannot run in a browser. **No `"use client"` component may import `src/lib/catalog.ts`, `src/server/services/**`, or `src/server/repositories/**` directly.** A client component that needs catalog data gets it one of two ways:
 
-- **Catalog**: `src/lib/catalog.ts` holds the real query functions (`getCategories`, `getCategoryBySlug`, `getProducts`, `getProductBySlug`, `getFeaturedProducts`, `getRelatedProducts`). `src/server/services/catalog.ts` re-exports them (plus `getStockStatus`) so server-rendered pages follow the "pages read via services" convention documented below. Client components that need a client-time lookup (`ProductCardLink`, `RecentlyViewed`) import `@/lib/catalog` directly.
-- **Shipping config**: `src/lib/shipping-config.ts` holds the `ShippingConfig` constant (`freeThreshold`, `flatRate`); `src/server/services/shipping.ts` imports it for `calculateShipping`.
+- **As a prop from a server-rendered ancestor.** Most catalog data a client component needs (e.g. a product's category display name in `ProductCardLink`) is already fetched by whatever Server Component renders it — `ProductGrid`/`ShopResults` thread a `categories` list down, `RelatedProducts`/the PDP page thread a single `categoryName` down. No extra fetch, no Server Action.
+- **Via a Server Action, when the data is only knowable client-side.** `RecentlyViewed.tsx`'s viewed-products list comes from localStorage (`store/recently-viewed-store.ts`), so it can't be resolved at server-render time — it calls `getRecentlyViewedProductsAction` (`src/server/actions/catalog.ts`) from a `useEffect`, which resolves each `{categorySlug, productSlug}` entry via Prisma and returns it with its category name already joined in.
 
-**Rule**: a `"use client"` file must never import from `src/server/**`. If a client component needs the same read a server page does, the underlying pure function belongs in `src/lib/`, not only in `src/server/services/`.
+`src/lib/shipping-config.ts` is the one remaining module that's genuinely client-safe (a plain constant, no I/O) — it's fine for a client component to import it directly if one ever needs to, though none do today.
+
+**Rule**: a `"use client"` file must never import from `src/server/**`, nor from `src/lib/catalog.ts`. If you're tempted to add a synchronous catalog lookup back into a client component, that's a sign the data should be a prop or a Server Action instead — see `git log` around the Real Prisma Integration commit for the exact refactor this rule came from (`ProductCardLink`/`RecentlyViewed` both used to call `lib/catalog.ts` directly, back when it was a static array).
 
 ## Repository Architecture
 
-There is still no reachable database, but order data is transactional (create/read/update), not static like the catalog — so it's built against a real repository interface instead of a plain data array.
+Order data is transactional (create/read/update), so it was built from Phase 5 against a real repository interface rather than inline Prisma calls in `orders.ts` — the payoff arrived when the database went live: only the implementation changed.
 
 ```
 src/server/repositories/order-repository.ts
 ├── OrderRecord / OrderItemRecord / PaymentRecord   — types mirroring prisma/schema.prisma
 ├── OrderRepository interface: create, findById, attachPayment, updateStatus, updatePaymentStatus
-└── InMemoryOrderRepository implements OrderRepository
-    — backing store is a `Map`, kept on `globalThis` (same HMR-survival trick `src/lib/db.ts`
-      uses for its Prisma client singleton) so dev-server hot reloads don't wipe orders mid-session
-export const orderRepository: OrderRepository = new InMemoryOrderRepository();
+├── InMemoryOrderRepository implements OrderRepository   — kept for reference, not wired up
+└── PrismaOrderRepository implements OrderRepository     — the live implementation
+    — maps OrderRecord/OrderItemRecord/PaymentRecord to/from Prisma's Order/OrderItem/Payment
+      models at this file's boundary only (Decimal↔number, PaymentMethod/PaymentStatus enum
+      casing, the OrderItem.variantLabelSnapshot/imageSnapshot and Payment.instructionsJson
+      columns added specifically to round-trip fields the in-memory version carried that had
+      no schema column yet)
+export const orderRepository: OrderRepository = new PrismaOrderRepository();
 ```
 
-**Rule**: `orderRepository`'s backing `Map` is touched only inside `order-repository.ts` itself. **Only `src/server/services/orders.ts` imports `orderRepository`.** No Server Action, page, or component may import the repository directly. When a real database exists, replace `InMemoryOrderRepository` with a Prisma-backed class implementing the same `OrderRepository` interface — `orders.ts` and everything above it is unaffected.
+**Rule**: `orderRepository` (whichever implementation is exported) is touched only inside `order-repository.ts` itself. **Only `src/server/services/orders.ts` imports `orderRepository`.** No Server Action, page, or component may import the repository directly.
 
 ## Service Layer Architecture
 
@@ -159,12 +165,13 @@ Checkout, `orders.ts`, and (eventually) an admin payments queue depend only on t
 
 No `/peptides`-specific routing or schema. `Category` rows carry an `attributeSchema` describing which attribute keys/labels their products expose; `ProductVariant` carries a matching `attributes: Json` blob (e.g. `{ "dosage": "10mg" }` for a peptide, `{ "size": "L", "color": "black" }` for merch). The PDP template (`[category]/[slug]/page.tsx`) and catalog filters read `attributeSchema` to render the right fields generically — a new category is a data insert, never a code change. Pricing is genuinely nullable at the `Product` level (`price: number | null`) — unpriced products render "Contact for Pricing" or "Coming Soon" instead of an invented figure; this is intentional, not a gap to fill in with placeholder numbers.
 
-## Data & Persistence: no reachable database yet
+## Data & Persistence: a real database
 
-There has never been a reachable Postgres instance in this environment. Two parallel, intentional patterns exist as a result (both meant to be swapped for real Prisma later with minimal blast radius — see [§ Repository Architecture](#repository-architecture) above and [ROADMAP.md](./ROADMAP.md)):
+A Postgres database (hosted on Neon) is live and is the single source of truth for the catalog and orders — both `lib/catalog.ts` and `server/repositories/order-repository.ts` are Prisma-backed.
 
-- **Catalog (read-only)**: `src/lib/data/catalog-data.ts` — static arrays, served through `lib/catalog.ts` / `server/services/catalog.ts`.
-- **Orders (read/write)**: `server/repositories/order-repository.ts` — in-memory, HMR-safe `Map`, served through `server/services/orders.ts`.
+- **Bootstrapping a fresh database**: `prisma/seed.ts` is the *only* remaining consumer of `src/lib/data/catalog-data.ts` (the static arrays that powered the catalog through Phase 5) — it upserts categories/products/variants/images from that static data once, so a new environment's database starts with the same real product data the app has always shown. After seeding, `catalog-data.ts` has zero runtime consumers; **don't add one** — edit the database (re-run the seed, or use the Admin Dashboard's product CRUD once it exists), not the TypeScript array, to change product data.
+- **Dev database workflow**: `npm run db:migrate` (new migration), `npm run db:generate` (regenerate the client), `npm run db:seed` (run `prisma/seed.ts` via `prisma db seed`, configured in `prisma.config.ts`'s `migrations.seed`, not `package.json`), `npm run db:reset` (drop, remigrate, and reseed in one step — the fast way to get back to a known-good state).
+- **Standalone scripts against the database** (seed, one-off data scripts) run via `tsx`, not the Next.js dev server, and use relative imports rather than the `@/` path alias by default — `tsx --tsconfig tsconfig.json` will resolve `@/` if a script genuinely needs it, but `prisma/seed.ts` avoids it entirely (it instantiates its own `PrismaClient` rather than importing `src/lib/db.ts`) since it must run before the Next.js app exists in a fresh environment.
 
 ## Ecommerce Order Lifecycle
 
@@ -188,13 +195,13 @@ All modules share the same `DataTable`/`StatCard`/form primitives (see [DESIGN_S
 
 ## Database Schema (core models)
 
-`User, Address, Category(+attributeSchema), Product, ProductVariant(+attributes), ProductImage, ProductDocument, Cart, CartItem, Order(+discount,+shippingCost,+tax,+total,+researchAcknowledged), OrderItem, Payment(provider,status,providerRef), Page, Article, FAQItem`, plus v2 stubs `Coupon, Discount, Review, ShippingZone, ReturnRequest`.
+`User, Address, Category(+attributeSchema), Product, ProductVariant(+attributes), ProductImage, ProductDocument, Cart, CartItem, Order(+discount,+shippingCost,+tax,+total,+researchAcknowledged), OrderItem(+variantLabelSnapshot,+imageSnapshot), Payment(provider,status,providerRef,+instructionsJson), Page, Article, FAQItem`, plus v2 stubs `Coupon, Discount, Review, ShippingZone, ReturnRequest`.
 
 `PaymentMethod` enum: `WISE, NOW_PAYMENTS, COINBASE_COMMERCE, BITCOIN, MANUAL, STRIPE, AUTHORIZE` (ordered with the three decided production providers first).
 
 `OrderStatus` enum: `PENDING, AWAITING_PAYMENT, PAYMENT_SUBMITTED, PAYMENT_CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED`.
 
-Full field list lives in `prisma/schema.prisma` (source of truth — this doc describes relationships, not exact columns). No migrations have been run — there is no reachable database, so schema edits are direct/safe for now; the first real migration happens when Real Prisma Integration (see [ROADMAP.md](./ROADMAP.md)) begins.
+Full field list lives in `prisma/schema.prisma` (source of truth — this doc describes relationships, not exact columns). Migrations now run against a real Neon Postgres instance (`prisma/migrations/`, applied via `npm run db:migrate`) — schema edits from here on need a real migration, not a direct edit. `OrderItem.variantLabelSnapshot`/`imageSnapshot` and `Payment.instructionsJson` were added specifically when `PrismaOrderRepository` was built, to round-trip fields the pre-Prisma in-memory repository carried that had no column yet (see [§ Repository Architecture](#repository-architecture)). Auth.js's `Account`/`Session`/`VerificationToken` models and `User.emailVerified`/`image` fields are **not added yet** — that's scoped to the Authentication phase (see [ROADMAP.md](./ROADMAP.md)), since nothing exercises `lib/auth.ts` today.
 
 ## Content Layer
 
@@ -215,4 +222,5 @@ Marketing content (Home copy, About, FAQ, Research articles, Blog, Legal/Policie
 - **Phase 3** — homepage: all sections built and refined against reference material.
 - **Phase 4** — shop catalog: `/shop`, category pages, PDP, static catalog data layer.
 - **Phase 5** — cart & checkout: Cart Drawer/Page, full checkout wizard, Order Repository, shipping/tax/discount/inventory/notification/analytics services, provider-agnostic payment integration, production payment-provider trio decided (Wise/NOW Payments/Coinbase Commerce).
-- **Phase 6+** — see [ROADMAP.md](./ROADMAP.md): Authentication, Customer Accounts, Admin Dashboard, CMS, Real Prisma integration, real payment-provider integrations, production hardening, deployment.
+- **Phase 6** — real Prisma integration: reordered ahead of Authentication/Accounts (see [ROADMAP.md](./ROADMAP.md)'s 2026-07-06 note) so those phases build on real persistence from day one instead of a throwaway in-memory store. Neon Postgres provisioned, first migration run, `PrismaOrderRepository` and Prisma-backed `lib/catalog.ts` are now the live implementations, `prisma/seed.ts` bootstraps a fresh database from the old static catalog data, `db:seed`/`db:reset` dev workflow scripts added.
+- **Phase 7+** — see [ROADMAP.md](./ROADMAP.md): Authentication & Authorization, Customer Accounts, Admin Dashboard, CMS, real payment-provider integrations, production hardening, deployment.

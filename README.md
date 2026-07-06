@@ -19,7 +19,7 @@ See also: [ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN_SYSTEM.md](./DESIGN_SY
 ## Prerequisites
 
 - Node.js 20+
-- PostgreSQL 15+ (local or hosted — Neon/Supabase both work) — **not required for local dev today**; there is no reachable database in this project yet, and the catalog/orders both run against static/in-memory data (see `PROJECT_CONTEXT.md` §7 and `ARCHITECTURE.md` §Data & Persistence)
+- A reachable PostgreSQL database — this project uses a hosted **Neon** instance; Supabase or a local Postgres install work too, just update `DATABASE_URL`. Required: the catalog and orders are Prisma-backed, not static, as of the Real Prisma Integration phase.
 - (Optional, for Bitcoin payments) a BTCPay Server instance
 
 ## Setup
@@ -28,9 +28,12 @@ See also: [ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN_SYSTEM.md](./DESIGN_SY
 npm install
 cp .env.example .env         # fill in DATABASE_URL, AUTH_SECRET, payment provider keys
 npx auth secret               # generates AUTH_SECRET, or set your own
-npm run db:migrate            # applies prisma/schema.prisma
+npm run db:migrate            # applies prisma/schema.prisma, creates tables
+npm run db:seed               # bootstraps categories/products from src/lib/data/catalog-data.ts
 npm run dev                   # http://localhost:3000
 ```
+
+Getting back to a known-good database state at any point: `npm run db:reset` (drops, remigrates, and reseeds in one step).
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contributor workflow (branching, commits, PRs, what to run before pushing).
 
@@ -47,6 +50,8 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contributor workflow (bran
 | `npm run db:migrate` | Apply schema changes locally (`prisma migrate dev`) |
 | `npm run db:studio` | Inspect/edit DB data (`prisma studio`) |
 | `npm run db:generate` | Regenerate the Prisma client after a schema edit |
+| `npm run db:seed` | Bootstrap categories/products from `src/lib/data/catalog-data.ts` (`prisma db seed`) |
+| `npm run db:reset` | Drop, remigrate, and reseed in one step (`prisma migrate reset`) |
 
 ## Folder Structure (summary — full detail in ARCHITECTURE.md)
 
@@ -56,17 +61,19 @@ src/
 ├── branding/       # brand tokens, logo, icons, illustrations — never mixed into components/
 ├── components/     # ui (shadcn) · layout · home · shop · cart · checkout · account · admin · motion
 ├── hooks/          # useCart, useCheckout, useBreakpoint, useScroll, useTheme, useDisclosure, useDebounce
-├── lib/            # db, payments/ (adapter interface + adapters), catalog.ts, shipping-config.ts, analytics.ts,
-│                   # validations/, auth, seo, utils
+├── lib/            # db, payments/ (adapter interface + adapters), catalog.ts (Prisma-backed, server-only),
+│                   # shipping-config.ts, analytics.ts, data/catalog-data.ts (bootstrap-only), validations/, auth, seo, utils
 ├── server/
-│   ├── actions/    # Server Actions (checkout.ts)
+│   ├── actions/    # Server Actions (checkout.ts, catalog.ts)
 │   ├── services/   # business logic: catalog, orders, shipping, tax, discounts, inventory, notifications
-│   └── repositories/ # order-repository.ts — the only file touching order storage directly
+│   └── repositories/ # order-repository.ts — PrismaOrderRepository is live, the only file touching order storage directly
 ├── store/          # Zustand: cart-store, ui-store, recently-viewed-store
 ├── types/
 └── config/         # site.ts, nav.ts
 prisma/
-└── schema.prisma
+├── schema.prisma
+├── seed.ts        # bootstraps a fresh database from src/lib/data/catalog-data.ts
+└── migrations/
 ```
 
 ## Environment Variables
@@ -84,8 +91,8 @@ prisma/
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe adapter — optional/example, not a decided production provider |
 | `AUTHORIZE_API_LOGIN_ID`, `AUTHORIZE_TRANSACTION_KEY` | Authorize.net adapter — optional/example, not a decided production provider |
 
-`DATABASE_URL` is consumed both by `prisma.config.ts` (CLI/migrations) and by `src/lib/db.ts`, which wraps it in a `@prisma/adapter-pg` driver adapter — Prisma 7's client generator requires an explicit driver adapter rather than reading the env var itself (see ARCHITECTURE.md). There is no reachable database in this project yet, so none of this is required to run `npm run dev` today.
+`DATABASE_URL` is consumed both by `prisma.config.ts` (CLI/migrations) and by `src/lib/db.ts`, which wraps it in a `@prisma/adapter-pg` driver adapter — Prisma 7's client generator requires an explicit driver adapter rather than reading the env var itself (see ARCHITECTURE.md). A reachable database is required to run `npm run dev` — the catalog and orders are both Prisma-backed.
 
 ## Current Status
 
-**Phases 1–5 complete**: engineering foundation, design system, homepage, shop catalog (`/shop`), and cart & checkout (`/cart`, `/checkout`). See [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing) for phase detail and [ROADMAP.md](./ROADMAP.md) for what's next (Authentication, Customer Accounts, Admin Dashboard, CMS, real Prisma integration, real payment-provider integrations, production hardening, deployment). **Read [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) before starting new work** — it has the full picture, including how this project's owner likes to work.
+**Phases 1–6 complete**: engineering foundation, design system, homepage, shop catalog (`/shop`), cart & checkout (`/cart`, `/checkout`), and real Prisma integration (a live Neon Postgres database backs the catalog and orders). See [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing) for phase detail and [ROADMAP.md](./ROADMAP.md) for what's next (Authentication, Customer Accounts, Admin Dashboard, CMS, real payment-provider integrations, production hardening, deployment). **Read [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) before starting new work** — it has the full picture, including how this project's owner likes to work.

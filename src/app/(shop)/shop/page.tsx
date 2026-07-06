@@ -25,9 +25,9 @@ interface ShopPageProps {
 export default async function ShopPage({ searchParams }: ShopPageProps) {
   const params = await searchParams;
   const page = Number(params.page) || 1;
-  const categories = getCategories();
-  const featured = getFeaturedProducts();
-  const result = getProducts({
+  const categories = await getCategories();
+  const featured = await getFeaturedProducts();
+  const result = await getProducts({
     q: params.q,
     sort: (params.sort as ProductSort) || "featured",
     page,
@@ -62,7 +62,11 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           <div className="mt-6">
             <ProductCarousel>
               {featured.map((product) => (
-                <ProductCardLink key={product.id} product={product} />
+                <ProductCardLink
+                  key={product.id}
+                  product={product}
+                  categoryName={categories.find((c) => c.slug === product.categorySlug)?.name}
+                />
               ))}
             </ProductCarousel>
           </div>
@@ -74,7 +78,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
       </div>
 
       <div className="mt-8">
-        <ShopResults products={result.items} />
+        <ShopResults products={result.items} categories={categories} />
         <Pagination page={result.page} pageCount={result.pageCount} buildHref={buildHref} />
       </div>
     </div>

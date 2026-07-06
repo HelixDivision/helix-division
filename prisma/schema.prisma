@@ -292,14 +292,16 @@ model Order {
 }
 
 model OrderItem {
-  id            String         @id @default(cuid())
-  orderId       String
-  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  variantId     String
-  variant       ProductVariant @relation(fields: [variantId], references: [id])
-  nameSnapshot  String
-  priceSnapshot Decimal        @db.Decimal(10, 2)
-  quantity      Int
+  id                   String         @id @default(cuid())
+  orderId              String
+  order                Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId            String
+  variant              ProductVariant @relation(fields: [variantId], references: [id])
+  nameSnapshot         String
+  variantLabelSnapshot String
+  imageSnapshot        String?
+  priceSnapshot        Decimal        @db.Decimal(10, 2)
+  quantity             Int
 
   @@index([orderId])
   @@map("order_items")
@@ -335,10 +337,15 @@ model Payment {
   status        PaymentStatus @default(PENDING)
   amount        Decimal       @db.Decimal(10, 2)
   currency      String        @default("USD")
-  referenceCode String? // Wise bank-transfer reference
+  referenceCode String? // Wise bank-transfer reference / generic provider reference code
   btcAddress    String?
   btcInvoiceId  String?
   txHash        String?
+  // Generic provider-specific rendering payload (e.g. WiseInstructions,
+  // a future NOW Payments/Coinbase Commerce hosted-checkout URL) — mirrors
+  // Order.shippingAddressJson's pattern of storing a structured shape that
+  // varies per provider as Json rather than one column per provider.
+  instructionsJson Json?
   confirmedAt   DateTime?
   createdAt     DateTime      @default(now())
 

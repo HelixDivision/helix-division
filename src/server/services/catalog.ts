@@ -3,16 +3,13 @@ import { getStockStatus } from "@/lib/stock-status";
 /**
  * Catalog read layer — Server Components/pages should import from here (the
  * "pages read via services" convention), not from src/lib/catalog.ts
- * directly. The actual query functions live in src/lib/catalog.ts because
- * they're pure/client-safe today (static data); this file just re-exports
- * them so the convention holds and the eventual Prisma swap only touches
- * this file's implementation, not every page that reads catalog data.
- *
- * Client components needing a client-time lookup (ProductCardLink,
- * RecentlyViewed) import src/lib/catalog.ts directly instead — see that
- * file's docblock for why.
+ * directly, even though that file just re-exports Prisma-backed functions
+ * now. Client components must not import either module — see
+ * src/lib/catalog.ts's docblock; they receive category names / recently
+ * viewed products via props or server/actions/catalog.ts instead.
  */
 export {
+  getAllProductSlugPairs,
   getCategories,
   getCategoryBySlug,
   getFeaturedProducts,

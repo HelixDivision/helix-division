@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { ProductCardLink } from "@/components/shop/ProductCardLink";
 import { ProductCarousel } from "@/components/shop/ProductCarousel";
-import { getProductBySlug } from "@/lib/catalog";
+import {
+  getRecentlyViewedProductsAction,
+  type RecentlyViewedProductResult,
+} from "@/server/actions/catalog";
 import { useRecentlyViewedStore } from "@/store/recently-viewed-store";
 import type { CatalogProduct } from "@/types/catalog";
 
@@ -12,19 +15,29 @@ import type { CatalogProduct } from "@/types/catalog";
 export function RecentlyViewed({ currentProduct }: { currentProduct: CatalogProduct }) {
   const entries = useRecentlyViewedStore((s) => s.entries);
   const addEntry = useRecentlyViewedStore((s) => s.addEntry);
+  const [viewed, setViewed] = useState<RecentlyViewedProductResult[]>([]);
 
   useEffect(() => {
     addEntry({ categorySlug: currentProduct.categorySlug, productSlug: currentProduct.slug });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProduct.categorySlug, currentProduct.slug]);
 
-  const viewed = entries
-    .filter(
+  useEffect(() => {
+    const others = entries.filter(
       (e) =>
         !(e.categorySlug === currentProduct.categorySlug && e.productSlug === currentProduct.slug),
-    )
-    .map((e) => getProductBySlug(e.categorySlug, e.productSlug))
-    .filter((p): p is CatalogProduct => Boolean(p));
+    );
+    // Always resolve through the action (even for an empty list) so setViewed
+    // only ever runs inside the async callback, never synchronously in the
+    // effect body — Promise.all([]) resolves to [] on its own.
+    let cancelled = false;
+    getRecentlyViewedProductsAction(others).then((resolved) => {
+      if (!cancelled) setViewed(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [entries, currentProduct.categorySlug, currentProduct.slug]);
 
   if (viewed.length === 0) return null;
 
@@ -36,8 +49,8 @@ export function RecentlyViewed({ currentProduct }: { currentProduct: CatalogProd
       </p>
       <div className="mt-8">
         <ProductCarousel>
-          {viewed.map((product) => (
-            <ProductCardLink key={product.id} product={product} />
+          {viewed.map(({ product, categoryName }) => (
+            <ProductCardLink key={product.id} product={product} categoryName={categoryName} />
           ))}
         </ProductCarousel>
       </div>

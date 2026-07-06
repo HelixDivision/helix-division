@@ -14,8 +14,8 @@ interface PaymentProvider {
 
   // Called at checkout once an Order exists (status: AWAITING_PAYMENT).
   // Takes a plain domain type, NOT the Prisma-generated Order — keeps this
-  // layer decoupled from the ORM even while order data is served by the
-  // in-memory repository.
+  // layer decoupled from the ORM regardless of which OrderRepository
+  // implementation is currently live.
   createPaymentRequest(order: PaymentOrderInput): Promise<PaymentRequestResult>;
 
   // Polled or called on-demand (e.g. customer refreshes the payment page).
@@ -111,7 +111,7 @@ interface OrderRepository {
 }
 ```
 
-`InMemoryOrderRepository` is the only implementation today (HMR-safe `Map` on `globalThis`). A future Prisma-backed implementation must satisfy the same interface — no other file should need to change.
+`PrismaOrderRepository` is the live implementation as of Real Prisma Integration — it maps `OrderRecord`/`OrderItemRecord`/`PaymentRecord` to/from Prisma's generated `Order`/`OrderItem`/`Payment` models at this file's boundary only (`Decimal↔number`, `PaymentMethod`/`PaymentStatus` enum casing between lowercase-hyphenated provider ids and Prisma's uppercase-underscored enum values). `InMemoryOrderRepository` (HMR-safe `Map` on `globalThis`) is kept in the same file for reference but isn't exported/used. No file above the repository needed to change when the swap happened — that was the point of building it as an interface from Phase 5.
 
 ## Service Contracts (`src/server/services/`)
 
@@ -167,18 +167,23 @@ confirmPaymentSubmitted(orderId: string, providerId: string): Promise<OrderRecor
 
 ## Catalog Read Functions
 
-`src/lib/catalog.ts` (client-safe) — re-exported by `src/server/services/catalog.ts` for server pages:
+`src/lib/catalog.ts` — Prisma-backed and **server-only** as of Real Prisma Integration (it imports `@/lib/db`, which can't run in a browser); re-exported by `src/server/services/catalog.ts` for server pages:
 
 ```ts
-getCategories(): Category[];
-getCategoryBySlug(slug: string): Category | undefined;
-getProducts(params: GetProductsParams): GetProductsResult;
-getProductBySlug(categorySlug: string, productSlug: string): Product | undefined;
-getFeaturedProducts(limit?: number): Product[];
-getRelatedProducts(product: Product, limit?: number): Product[];
+getCategories(): Promise<Category[]>;
+getCategoryBySlug(slug: string): Promise<Category | undefined>;
+getProducts(params: GetProductsParams): Promise<GetProductsResult>;
+getProductBySlug(categorySlug: string, productSlug: string): Promise<Product | undefined>;
+getFeaturedProducts(limit?: number): Promise<Product[]>;
+getRelatedProducts(product: Product, limit?: number): Promise<Product[]>;
+getAllProductSlugPairs(): Promise<{ categorySlug: string; slug: string }[]>;  // generateStaticParams only
 ```
 
-`"use client"` components import from `@/lib/catalog` directly (never `@/server/services/*` or `@/server/repositories/*`); server pages import from `@/server/services/catalog` by convention.
+**`"use client"` components must never import `@/lib/catalog`, `@/server/services/*`, or `@/server/repositories/*`.** They get catalog data one of two ways instead — see [ARCHITECTURE.md#client-server-split-for-read-modules](./ARCHITECTURE.md#client-server-split-for-read-modules):
+- **As a prop** from a server-rendered ancestor that already fetched it (e.g. `ProductCardLink`'s `categoryName` prop, threaded down from `ProductGrid`/`RelatedProducts`/the PDP page).
+- **Via a Server Action**, when the data is only knowable client-side — see `getRecentlyViewedProductsAction` below.
+
+Server pages import from `@/server/services/catalog` by convention.
 
 ## Server Actions (`src/server/actions/`)
 
@@ -187,6 +192,7 @@ Actions validate input via `lib/validations` (zod) and delegate to `server/servi
 | Action (file) | Purpose | Status |
 |---|---|---|
 | `checkout.ts` — `createOrderAction`, `confirmPaymentSentAction` | `createOrderAction` validates checkout form data via `lib/validations/checkout.ts`, calls `orders.createOrder` + `orders.createPaymentForOrder`, returns the new `orderId`. `confirmPaymentSentAction` calls `orders.confirmPaymentSubmitted`. | **Built** — Phase 5 |
+| `catalog.ts` — `getRecentlyViewedProductsAction(entries)` | Resolves `RecentlyViewed.tsx`'s localStorage-only `{categorySlug, productSlug}[]` entries into full product data with each product's category name already joined in — the one place a client component's catalog need can't be satisfied by a prop, since the list itself is only known after client-side hydration. | **Built** — Real Prisma Integration |
 | Cart mutations | Cart has no Server Action layer — it's pure client state (`useCartStore`, Zustand + localStorage persist), since there's nothing server-side to validate or persist for an anonymous, pre-checkout cart. | **By design, not a gap** |
 | `admin-products.ts`, `admin-orders.ts`, `admin-payments.ts` | Admin CRUD/status-transition actions, role-checked in the action itself in addition to the layout guard | **Not built** — see [ROADMAP.md](./ROADMAP.md) |
 

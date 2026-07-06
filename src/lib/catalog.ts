@@ -1,20 +1,26 @@
-import { categories, products } from "@/lib/data/catalog-data";
-import type { CatalogCategory, CatalogProduct } from "@/types/catalog";
+import { db } from "@/lib/db";
+import type {
+  CatalogCategory,
+  CatalogDocument,
+  CatalogImage,
+  CatalogProduct,
+  CatalogVariant,
+  DocumentKind,
+  ImageKind,
+} from "@/types/catalog";
 
 /**
- * Catalog read/query functions — framework-agnostic and side-effect-free
- * (per PROJECT_RULES.md's `lib/` convention), so both Server Components
- * (via the src/server/services/catalog.ts re-export, kept for the "pages
- * read via services" convention) and client components that need a
- * client-time lookup (e.g. ProductCardLink resolving a category name,
- * RecentlyViewed resolving products from localStorage-only state) can call
- * these directly without reaching into `src/server/`.
+ * Catalog read/query functions — Prisma-backed (see ARCHITECTURE.md#data--
+ * persistence). This module is server-only: it imports `@/lib/db`, which
+ * bundles the Prisma client and `pg` driver, neither of which can run in a
+ * browser. `"use client"` components must NOT import this file directly —
+ * they receive category names / recently-viewed products as props or via a
+ * Server Action instead (see ProductCardLink's `categoryName` prop and
+ * server/actions/catalog.ts's `getRecentlyViewedProductsAction`).
  *
- * Swapping the static array lookups below for real Prisma queries later is
- * the only change needed to go live on a database — but that swap can only
- * happen behind `src/server/services/catalog.ts`, since a real DB client
- * can't be bundled into client code. If/when that swap happens, the client
- * components using this module move to fetching via a Server Action instead.
+ * `src/server/services/catalog.ts` re-exports these functions for the
+ * "pages read via services" convention — that file needs no changes here,
+ * since a re-export of an async function is still just an async function.
  */
 
 export type ProductSort = "featured" | "price-asc" | "price-desc" | "name-asc" | "newest";
@@ -34,12 +40,172 @@ export interface GetProductsResult {
   pageCount: number;
 }
 
-export function getCategories(): CatalogCategory[] {
-  return categories;
+const PRODUCT_INCLUDE = {
+  category: true,
+  variants: true,
+  images: { orderBy: { position: "asc" } },
+  documents: true,
+} as const;
+
+interface PrismaCategoryRow {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  attributeSchema: unknown;
+  parentId: string | null;
 }
 
-export function getCategoryBySlug(slug: string): CatalogCategory | undefined {
-  return categories.find((c) => c.slug === slug);
+interface PrismaVariantRow {
+  id: string;
+  sku: string;
+  label: string;
+  price: { toString(): string } | null;
+  compareAtPrice: { toString(): string } | null;
+  attributes: unknown;
+  availableQuantity: number;
+  lowStockThreshold: number;
+  backorderAllowed: boolean;
+  restockDate: Date | null;
+}
+
+interface PrismaImageRow {
+  id: string;
+  url: string;
+  alt: string;
+  position: number;
+  kind: string;
+}
+
+interface PrismaDocumentRow {
+  id: string;
+  kind: string;
+  label: string;
+  url: string;
+}
+
+interface PrismaProductRow {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  researchSummary: string | null;
+  status: CatalogProduct["status"];
+  purity: string | null;
+  molecularWeight: string | null;
+  casNumber: string | null;
+  sequence: string | null;
+  storageInstructions: string | null;
+  labTestingSummary: string | null;
+  featured: boolean;
+  newArrival: boolean;
+  bestSeller: boolean;
+  shippingClass: CatalogProduct["shippingClass"];
+  seoTitle: string | null;
+  seoDescription: string | null;
+  category: PrismaCategoryRow;
+  variants: PrismaVariantRow[];
+  images: PrismaImageRow[];
+  documents: PrismaDocumentRow[];
+}
+
+const IMAGE_KIND_FROM_PRISMA: Record<string, ImageKind> = {
+  PRIMARY: "primary",
+  GALLERY: "gallery",
+  LABEL_CLOSEUP: "label-closeup",
+  PACKAGING: "packaging",
+  LIFESTYLE: "lifestyle",
+  COA_PREVIEW: "coa-preview",
+};
+
+const DOCUMENT_KIND_FROM_PRISMA: Record<string, DocumentKind> = {
+  COA: "coa",
+  LAB_REPORT: "lab-report",
+  VIDEO: "video",
+  OTHER: "other",
+};
+
+function toCatalogCategory(row: PrismaCategoryRow): CatalogCategory {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    description: row.description ?? undefined,
+    attributeSchema: row.attributeSchema as { key: string; label: string }[],
+  };
+}
+
+function toCatalogVariant(row: PrismaVariantRow): CatalogVariant {
+  return {
+    id: row.id,
+    sku: row.sku,
+    label: row.label,
+    price: row.price === null ? null : Number(row.price),
+    compareAtPrice: row.compareAtPrice === null ? null : Number(row.compareAtPrice),
+    attributes: row.attributes as Record<string, string>,
+    availableQuantity: row.availableQuantity,
+    lowStockThreshold: row.lowStockThreshold,
+    backorderAllowed: row.backorderAllowed,
+    restockDate: row.restockDate ? row.restockDate.toISOString() : null,
+  };
+}
+
+function toCatalogImage(row: PrismaImageRow): CatalogImage {
+  return {
+    id: row.id,
+    url: row.url,
+    alt: row.alt,
+    position: row.position,
+    kind: IMAGE_KIND_FROM_PRISMA[row.kind] ?? "gallery",
+  };
+}
+
+function toCatalogDocument(row: PrismaDocumentRow): CatalogDocument {
+  return {
+    id: row.id,
+    kind: DOCUMENT_KIND_FROM_PRISMA[row.kind] ?? "other",
+    label: row.label,
+    url: row.url,
+  };
+}
+
+function toCatalogProduct(row: PrismaProductRow): CatalogProduct {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    categorySlug: row.category.slug,
+    description: row.description,
+    researchSummary: row.researchSummary ?? undefined,
+    status: row.status,
+    purity: row.purity ?? undefined,
+    molecularWeight: row.molecularWeight ?? undefined,
+    casNumber: row.casNumber ?? undefined,
+    sequence: row.sequence ?? undefined,
+    storageInstructions: row.storageInstructions ?? undefined,
+    labTestingSummary: row.labTestingSummary ?? undefined,
+    documents: row.documents.length > 0 ? row.documents.map(toCatalogDocument) : undefined,
+    featured: row.featured,
+    newArrival: row.newArrival,
+    bestSeller: row.bestSeller,
+    shippingClass: row.shippingClass,
+    seoTitle: row.seoTitle ?? undefined,
+    seoDescription: row.seoDescription ?? undefined,
+    reviewCount: undefined,
+    averageRating: undefined,
+    images: row.images.map(toCatalogImage),
+    variants: row.variants.map(toCatalogVariant),
+  };
+}
+
+export async function getCategories(): Promise<CatalogCategory[]> {
+  const rows = await db.category.findMany({ orderBy: { name: "asc" } });
+  return rows.map(toCatalogCategory);
+}
+
+export async function getCategoryBySlug(slug: string): Promise<CatalogCategory | undefined> {
+  const row = await db.category.findUnique({ where: { slug } });
+  return row ? toCatalogCategory(row) : undefined;
 }
 
 function matchesQuery(product: CatalogProduct, q: string): boolean {
@@ -75,11 +241,21 @@ function sortProducts(items: CatalogProduct[], sort: ProductSort): CatalogProduc
   }
 }
 
-export function getProducts(params: GetProductsParams = {}): GetProductsResult {
+// Filtering/sorting/pagination stays in JS (same logic as the pre-Prisma
+// static-array version) rather than moving to SQL — the catalog is small
+// (~20 products), and keeping this logic unchanged minimizes behavior drift
+// from swapping the data source underneath it.
+export async function getProducts(params: GetProductsParams = {}): Promise<GetProductsResult> {
   const { category, q, sort = "featured", page = 1, pageSize = 12 } = params;
 
-  let items = products.filter((p) => p.status === "ACTIVE");
-  if (category) items = items.filter((p) => p.categorySlug === category);
+  const rows = await db.product.findMany({
+    where: {
+      status: "ACTIVE",
+      ...(category ? { category: { slug: category } } : {}),
+    },
+    include: PRODUCT_INCLUDE,
+  });
+  let items = rows.map(toCatalogProduct);
   if (q) items = items.filter((p) => matchesQuery(p, q));
   items = sortProducts(items, sort);
 
@@ -92,16 +268,46 @@ export function getProducts(params: GetProductsParams = {}): GetProductsResult {
   return { items: pageItems, total, page: safePage, pageCount };
 }
 
-export function getProductBySlug(categorySlug: string, slug: string): CatalogProduct | undefined {
-  return products.find((p) => p.categorySlug === categorySlug && p.slug === slug);
+export async function getProductBySlug(
+  categorySlug: string,
+  slug: string,
+): Promise<CatalogProduct | undefined> {
+  const row = await db.product.findFirst({
+    where: { slug, category: { slug: categorySlug } },
+    include: PRODUCT_INCLUDE,
+  });
+  return row ? toCatalogProduct(row) : undefined;
 }
 
-export function getFeaturedProducts(limit = 6): CatalogProduct[] {
-  return products.filter((p) => p.featured).slice(0, limit);
+export async function getFeaturedProducts(limit = 6): Promise<CatalogProduct[]> {
+  const rows = await db.product.findMany({
+    where: { status: "ACTIVE", featured: true },
+    include: PRODUCT_INCLUDE,
+    take: limit,
+  });
+  return rows.map(toCatalogProduct);
 }
 
-export function getRelatedProducts(product: CatalogProduct, limit = 4): CatalogProduct[] {
-  return products
-    .filter((p) => p.categorySlug === product.categorySlug && p.slug !== product.slug)
-    .slice(0, limit);
+export async function getRelatedProducts(
+  product: CatalogProduct,
+  limit = 4,
+): Promise<CatalogProduct[]> {
+  const rows = await db.product.findMany({
+    where: {
+      status: "ACTIVE",
+      slug: { not: product.slug },
+      category: { slug: product.categorySlug },
+    },
+    include: PRODUCT_INCLUDE,
+    take: limit,
+  });
+  return rows.map(toCatalogProduct);
+}
+
+/** Every {categorySlug, slug} pair — used only by generateStaticParams. */
+export async function getAllProductSlugPairs(): Promise<{ categorySlug: string; slug: string }[]> {
+  const rows = await db.product.findMany({
+    select: { slug: true, category: { select: { slug: true } } },
+  });
+  return rows.map((row) => ({ categorySlug: row.category.slug, slug: row.slug }));
 }

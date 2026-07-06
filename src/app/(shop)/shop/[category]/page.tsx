@@ -18,13 +18,14 @@ interface CategoryPageProps {
   searchParams: Promise<{ q?: string; sort?: string; page?: string }>;
 }
 
-export function generateStaticParams() {
-  return getCategories().map((category) => ({ category: category.slug }));
+export async function generateStaticParams() {
+  const categories = await getCategories();
+  return categories.map((category) => ({ category: category.slug }));
 }
 
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { category: categorySlug } = await params;
-  const category = getCategoryBySlug(categorySlug);
+  const category = await getCategoryBySlug(categorySlug);
   if (!category) return {};
   return {
     title: `${category.name} | Helix Division`,
@@ -34,14 +35,14 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
 
 export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
   const { category: categorySlug } = await params;
-  const foundCategory = getCategoryBySlug(categorySlug);
+  const foundCategory = await getCategoryBySlug(categorySlug);
   if (!foundCategory) notFound();
   const category = foundCategory;
 
   const search = await searchParams;
   const page = Number(search.page) || 1;
-  const categories = getCategories();
-  const result = getProducts({
+  const categories = await getCategories();
+  const result = await getProducts({
     category: category.slug,
     q: search.q,
     sort: (search.sort as ProductSort) || "featured",
@@ -81,7 +82,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
       </div>
 
       <div className="mt-8">
-        <ShopResults products={result.items} />
+        <ShopResults products={result.items} categories={categories} />
         <Pagination page={result.page} pageCount={result.pageCount} buildHref={buildHref} />
       </div>
     </div>

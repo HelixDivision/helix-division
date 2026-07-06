@@ -1,9 +1,13 @@
 import type { CatalogCategory, CatalogProduct } from "@/types/catalog";
 
-// Static stand-in for the Prisma-backed catalog (no reachable database in
-// this environment yet — see src/server/services/catalog.ts). Shape mirrors
-// prisma/schema.prisma exactly so swapping the service internals for real
-// Prisma queries later doesn't touch any component.
+// Bootstrap-only. The database is now the single source of truth for the
+// catalog (see src/lib/catalog.ts) — this module's only remaining consumer
+// is prisma/seed.ts, which used it to populate the initial Postgres data.
+// Do not import this from application code, and do not add a fallback path
+// that reads from here if a Prisma query comes back empty. To change product
+// data now, write to the database (re-run the seed, or use the Admin
+// Dashboard's product CRUD once it exists) — don't edit this file expecting
+// it to affect the running app.
 
 export const categories: CatalogCategory[] = [
   {
@@ -324,7 +328,3 @@ export const products: CatalogProduct[] = seedProducts.map((seed, index) => {
     ],
   };
 });
-
-export const productBadges: Record<string, "new" | "research-grade"> = Object.fromEntries(
-  seedProducts.filter((p) => p.badge).map((p) => [p.slug, p.badge as "new" | "research-grade"]),
-);

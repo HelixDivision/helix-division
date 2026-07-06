@@ -16,9 +16,13 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { products } from "@/lib/data/catalog-data";
 import { getStockStatus } from "@/lib/stock-status";
-import { getCategoryBySlug, getProductBySlug, getRelatedProducts } from "@/server/services/catalog";
+import {
+  getAllProductSlugPairs,
+  getCategoryBySlug,
+  getProductBySlug,
+  getRelatedProducts,
+} from "@/server/services/catalog";
 
 const stockStatusCopy = {
   "in-stock": "In Stock",
@@ -37,13 +41,13 @@ interface ProductPageProps {
   params: Promise<{ category: string; slug: string }>;
 }
 
-export function generateStaticParams() {
-  return products.map((product) => ({ category: product.categorySlug, slug: product.slug }));
+export async function generateStaticParams() {
+  return getAllProductSlugPairs();
 }
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { category, slug } = await params;
-  const product = getProductBySlug(category, slug);
+  const product = await getProductBySlug(category, slug);
   if (!product) return {};
   return {
     title: product.seoTitle ?? `${product.name} | Helix Division`,
@@ -53,13 +57,13 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { category: categorySlug, slug } = await params;
-  const category = getCategoryBySlug(categorySlug);
-  const product = getProductBySlug(categorySlug, slug);
+  const category = await getCategoryBySlug(categorySlug);
+  const product = await getProductBySlug(categorySlug, slug);
   if (!category || !product) notFound();
 
   const variant = product.variants[0];
   const stockStatus = getStockStatus(variant);
-  const related = getRelatedProducts(product);
+  const related = await getRelatedProducts(product);
 
   const specRows: { label: string; value?: string }[] = [
     { label: "SKU", value: variant.sku },
@@ -186,7 +190,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </div>
 
       <div className="mt-16">
-        <RelatedProducts products={related} />
+        <RelatedProducts products={related} categoryName={category.name} />
       </div>
 
       <div className="mt-16">
