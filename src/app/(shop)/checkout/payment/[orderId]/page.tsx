@@ -35,7 +35,13 @@ function WiseInstructionsPanel({ instructions }: { instructions: WiseInstruction
       {rows.map((row) => (
         <div key={row.label} className="border-border flex justify-between border-b py-2">
           <dt className="text-foreground-muted">{row.label}</dt>
-          <dd className="text-foreground-primary font-medium">{row.value}</dd>
+          <dd
+            className={
+              row.value ? "text-foreground-primary font-medium" : "text-foreground-muted italic"
+            }
+          >
+            {row.value || "Not yet configured"}
+          </dd>
         </div>
       ))}
       <p className="text-foreground-muted mt-2 text-xs">

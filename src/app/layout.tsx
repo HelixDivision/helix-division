@@ -57,7 +57,7 @@ export default function RootLayout({
       className={`${oswald.variable} ${inter.variable} dark h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="bg-background-base text-foreground-primary flex min-h-full flex-col">
+      <body className="bg-background-base text-foreground-primary flex min-h-full flex-col overflow-x-hidden">
         <a
           href="#main-content"
           className="bg-background-raised text-foreground-primary focus-visible:ring-ring sr-only rounded-md px-4 py-2 text-sm focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus-visible:ring-3"
@@ -69,8 +69,8 @@ export default function RootLayout({
           <Header />
           <MobileNav />
           <CartDrawer />
-          <main id="main-content" className="flex flex-1 flex-col">
-            {children}
+          <main id="main-content" className="flex min-w-0 flex-1 flex-col">
+            <div className="min-w-0 flex-1">{children}</div>
           </main>
           <Footer />
           <Toaster />

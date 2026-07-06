@@ -134,7 +134,7 @@ export function ProductCard({
                 Add to Cart
               </Button>
             )}
-            {onQuickView && (
+            {onQuickView && stockStatus !== "coming-soon" && (
               <Button
                 variant="outline"
                 size="icon"
