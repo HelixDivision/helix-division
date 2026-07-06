@@ -8,6 +8,8 @@ export interface NotificationService {
   sendOrderConfirmation(order: OrderRecord): Promise<void>;
   sendPaymentReceived(order: OrderRecord): Promise<void>;
   sendShipmentNotification(order: OrderRecord): Promise<void>;
+  sendEmailVerification(params: { email: string; url: string }): Promise<void>;
+  sendPasswordReset(params: { email: string; url: string }): Promise<void>;
 }
 
 class ConsoleNotificationService implements NotificationService {
@@ -21,6 +23,14 @@ class ConsoleNotificationService implements NotificationService {
 
   async sendShipmentNotification(order: OrderRecord): Promise<void> {
     console.info(`[notifications] shipment notice → ${order.email} (${order.orderNumber})`);
+  }
+
+  async sendEmailVerification({ email, url }: { email: string; url: string }): Promise<void> {
+    console.info(`[notifications] email verification → ${email}: ${url}`);
+  }
+
+  async sendPasswordReset({ email, url }: { email: string; url: string }): Promise<void> {
+    console.info(`[notifications] password reset → ${email}: ${url}`);
   }
 }
 

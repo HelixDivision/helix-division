@@ -20,8 +20,10 @@ Tech stack: **Next.js 16 (App Router) + TypeScript + Tailwind CSS v4 + shadcn/ui
 - **Phase 4 (shop catalog)** — done. `/shop`, `/shop/[category]`, `/shop/[category]/[slug]` — full catalog with search/sort/filter/pagination, category pages (including graceful empty states for categories with no products yet), and product detail pages (gallery, specifications, certificates, lab testing, research disclaimer, shipping info, related products, recently viewed). Catalog is served by a static, service-shaped data module (no database yet — see §7).
 - **Phase 5 (cart & checkout)** — done. Cart Drawer + Cart Page, full 2-step Checkout (Information → Review), Payment step (real Wise instructions; graceful "temporarily unavailable" state for providers not yet integrated), Confirmation page. Order creation goes through a real **Order Repository** abstraction and a set of business-logic services (shipping/tax/discounts/inventory/notifications/analytics) — see §9 and `ARCHITECTURE.md#repository-architecture` / `#service-layer-architecture`.
 - **Phase 6 (real Prisma integration)** — done. Reordered ahead of Authentication/Customer Accounts/Admin Dashboard (see `ROADMAP.md`'s 2026-07-06 note) specifically so those phases wouldn't be built against a throwaway in-memory store. A Neon Postgres database is now live: first migration run, `prisma/seed.ts` bootstraps it from the old static catalog data, `PrismaOrderRepository` and a Prisma-backed `lib/catalog.ts` are the live implementations (`InMemoryOrderRepository` kept in the same file for reference, unused), `db:seed`/`db:reset` dev workflow scripts added. See §7.
-- **Git**: initialized during the Phase 4→5 transition (no repo existed before that). Checkpoint commits so far: `feat(shop): complete Phase 4 Shop Experience`, `docs: finalize Phase 5 architecture and implementation` — check `git log` to confirm which commit you're resuming from and whether a Phase 6 checkpoint has landed yet.
-- **Not started**: `/login`, `/register`, `/account/*` (Authentication + Customer Accounts — next up, Phase 7), all of `/admin/*` (Admin Dashboard), CMS content wiring (`Page`/`Article`/`FAQItem` are still hardcoded in home components, not read from the DB), and real integrations for NOW Payments/Coinbase Commerce/Wise (adapters are scaffolded, not implemented). **See `ROADMAP.md` for the full remaining plan and phase order.**
+- **A UX polish pass** ran between Phase 6 and Phase 7 (checkpointed separately) — found and fixed a real site-wide mobile horizontal-overflow bug (flex-item `min-width: auto` chain from `<body>` down through `<main>`/each page's root div, forcing every page with a `ProductCarousel` wider than the viewport), a quick-view button clipped invisible on "Coming Soon" product cards, and blank/unexplained payment-instruction fields. See `git log` for the commit if you need the exact diff.
+- **Phase 7 (Authentication & Authorization)** — done. Login, Register, Forgot/Reset Password, Email Verification (tracked via `User.emailVerified`, not enforced), session management (Auth.js v5 Credentials + Prisma adapter, JWT strategy, explicit session/cookie security config), protected routes (`/account/*` any session, `/admin/*` `ADMIN` role, both in `src/proxy.ts`), a 12-char+complexity password policy, rate-limiting and audit-logging **architecture** (interfaces + no-op/console implementations, real backends deferred), and OAuth/MFA **documented extension points** (no real implementation of either). Full writeup: **`AUTH.md`** — read it before touching anything auth-related. `server/services/auth.ts` is scoped to authentication only; profile/preferences/avatar/notification-settings logic is reserved for a future `server/services/user.ts` (Phase 8), not `auth.ts` — see `AUTH.md#auth-vs-future-user-service`.
+- **Git**: initialized during the Phase 4→5 transition (no repo existed before that). Checkpoint commits so far: `feat(shop): complete Phase 4 Shop Experience`, `docs: finalize Phase 5 architecture and implementation`, a Real Prisma Integration checkpoint, a UX polish pass checkpoint, and a Phase 7 Authentication checkpoint — check `git log` to confirm which commit you're resuming from.
+- **Not started**: Customer Accounts (dashboard/profile/address book/order history — next up, Phase 8; `/account` today is only Phase 7's stub "logged in as X + sign out" page), all of `/admin/*` (Admin Dashboard), CMS content wiring (`Page`/`Article`/`FAQItem` are still hardcoded in home components, not read from the DB), and real integrations for NOW Payments/Coinbase Commerce/Wise (adapters are scaffolded, not implemented), plus everything AUTH.md documents as a future extension point (real OAuth provider, real MFA, real rate limiter, real audit sink). **See `ROADMAP.md` for the full remaining plan and phase order.**
 
 **When resuming work**: don't assume the next task is "the next thing on the roadmap" without confirming — this user approves phase-by-phase and has explicitly asked to review before each new phase begins. Read `ROADMAP.md`, propose/confirm which phase, then proceed.
 
@@ -51,8 +53,10 @@ helix-division/
 ├── PROJECT_RULES.md            Engineering conventions (TS, file placement, state mgmt, payments)
 ├── COMPONENT_GUIDELINES.md     Three-layer component model, how to add a new component
 ├── API.md                      Server Actions inventory, Repository/Service contracts, PaymentProvider contract, webhooks
+├── AUTH.md                     Authentication architecture, authorization flow, session lifecycle, password reset/email
+│                                verification flows, rate-limiting/audit-event architecture, future OAuth/MFA extension points
 ├── CONTRIBUTING.md              Branch/commit/PR conventions (process, not code)
-├── ROADMAP.md                   Remaining phases (Auth, Accounts, Admin, CMS, real payment integrations, hardening, deployment)
+├── ROADMAP.md                   Remaining phases (Accounts, Admin, CMS, real payment integrations, hardening, deployment)
 ├── Products/                    Source real product photography (raw, spaces in filenames)
 ├── HOMEPAGE RESOURSES/          Source reference images for the homepage (typo in folder name — don't "fix" it, it's the user's folder)
 ├── prisma/{schema.prisma, seed.ts, migrations/}   Schema is source of truth for all models; migrated against a live Neon Postgres database
@@ -68,12 +72,15 @@ helix-division/
 │   │                                stock-status.ts, data/catalog-data.ts (bootstrap-only — see §7), validations/checkout.ts,
 │   │                                payments/{provider,types,provider-labels}.ts + adapters/
 │   ├── server/
-│   │   ├── actions/                Server Actions — checkout.ts (createOrderAction, confirmPaymentSentAction), catalog.ts (getRecentlyViewedProductsAction)
+│   │   ├── actions/                Server Actions — checkout.ts, catalog.ts (getRecentlyViewedProductsAction),
+│   │   │                            auth.ts (registerAction, requestPasswordResetAction, resetPasswordAction, verifyEmailAction)
 │   │   ├── services/                Business logic: catalog.ts (re-exports lib/catalog.ts), orders.ts (orchestrator),
-│   │   │                            shipping.ts, tax.ts, discounts.ts, inventory.ts, notifications.ts
+│   │   │                            shipping.ts, tax.ts, discounts.ts, inventory.ts, notifications.ts, auth.ts (auth only —
+│   │   │                            see AUTH.md#auth-vs-future-user-service), auth-audit.ts, rate-limit.ts
 │   │   └── repositories/            order-repository.ts — PrismaOrderRepository is live; the ONLY file that touches order storage directly
 │   ├── store/                       Zustand: cart-store.ts, ui-store.ts, recently-viewed-store.ts
 │   └── types/                       Shared types, catalog.ts, next-auth.d.ts module augmentation
+├── scripts/promote-admin.ts         Dev-only: sets a test account's role to ADMIN (no Admin Dashboard to grant roles through yet)
 └── public/
     ├── products/                    Real product renders, cleaned kebab-case filenames
     └── branding/                    Logo assets, source mockups, section reference crops, photography/ (Phase 3 asset swaps)
@@ -93,8 +100,11 @@ These came from explicit user requirements, not defaults — see `ARCHITECTURE.m
 - **Product catalog is category-agnostic.** No `/peptides` route — it's `/shop/[category]/[slug]`, with `Category.attributeSchema` (JSON) driving which attributes a category's products expose, and `ProductVariant.attributes` (JSON) carrying the actual values.
 - **Branding is a separate layer from UI components.** `src/branding/` (tokens, logo, icons, illustrations) vs `src/components/ui/` (generic primitives) vs `src/components/{home,shop,cart,checkout}/` (domain). No component outside `branding/` may hardcode a brand hex/font/logo path — confirmed clean by grep audit at Phase 5 close-out.
 - **Server state via Server Components/Actions, not a client fetch library.** Client state (Zustand) is limited to cart (`cart-store`, localStorage-persisted), ephemeral UI chrome (`ui-store`), and recently-viewed tracking (`recently-viewed-store`, also localStorage-persisted).
-- **Auth.js role gating happens in `src/proxy.ts`** (Next.js 16 renamed `middleware` → `proxy`).
+- **Auth.js role/session gating happens in `src/proxy.ts`** (Next.js 16 renamed `middleware` → `proxy`) — `/admin/*` requires `role === "ADMIN"`, `/account/*` requires any session. Never trust the proxy alone for a sensitive mutation; re-check in the Server Action too.
 - **Prisma 7 requires an explicit driver adapter.** `lib/db.ts` wraps `@prisma/adapter-pg` around `DATABASE_URL` — `new PrismaClient()` with no adapter will throw.
+- **`server/services/auth.ts` is authentication-only.** Register, verify credentials, password reset, email verification, audit — nothing else. Profile/preferences/avatar/notification-settings logic is reserved for a future `server/services/user.ts` (Phase 8). Don't add account-management logic to `auth.ts` — see `AUTH.md#auth-vs-future-user-service`.
+- **Rate limiting and audit logging are interfaces today, not real implementations** — `server/services/rate-limit.ts`'s `RateLimiter`/`NoopRateLimiter` and `server/services/auth-audit.ts`'s `AuthAuditService`/`ConsoleAuditService` mirror the same "interface now, real backend later" pattern as `NotificationService`/`PaymentProvider`. Every auth entry point that would need real rate limiting already calls `rateLimiter.check(...)`; don't add a new auth entry point without also wiring that call. See `AUTH.md`.
+- **Session/cookie security config lives in exactly one place**: `lib/auth.ts`'s `session`/`cookies` blocks (`maxAge`, `updateAge` rolling refresh, `httpOnly`/`sameSite`/`secure`). A future "Remember Me" feature should only need to touch this one place plus the login form — see `AUTH.md#session-lifecycle`.
 
 ## 6. Routing map (current state)
 
@@ -104,7 +114,8 @@ These came from explicit user requirements, not defaults — see `ARCHITECTURE.m
 | `/shop`, `/shop/[category]`, `/shop/[category]/[slug]` | **Built** — Phase 4 |
 | `/cart` | **Built** — Phase 5 |
 | `/checkout`, `/checkout/payment/[orderId]`, `/checkout/confirmation/[orderId]` | **Built** — Phase 5 |
-| `/login`, `/register`, `/account/*` | Empty route group only — see `ROADMAP.md` |
+| `/login`, `/register`, `/forgot-password`, `/reset-password/[token]`, `/verify-email/[token]` | **Built** — Phase 7 |
+| `/account` | **Built, stub only** — Phase 7 proved the protected-route gating works; real dashboard is Phase 8 |
 | `/admin/*` (16 sub-modules planned) | Empty route group only — see `ROADMAP.md` |
 | `/research`, `/about`, `/contact`, `/quality`, `/faq`, `/legal/*` | Not scaffolded — nav links point here but pages don't exist |
 
@@ -163,6 +174,8 @@ Full spec in `DESIGN_SYSTEM.md`. New Phase 4/5 primitives — `Checkbox`, `Radio
 - **Prisma 7's seed command is configured in `prisma.config.ts`'s `migrations.seed` field, not `package.json`'s `"prisma"` key** (that was the Prisma 5/6 convention — `prisma db seed` will tell you plainly if you get this wrong, with a copy-pasteable example).
 - **Standalone TypeScript scripts run via `tsx` (seeding, one-off data scripts) don't resolve the `@/` path alias by default** — pass `--tsconfig tsconfig.json` explicitly if a script needs it, or just use relative imports (what `prisma/seed.ts` does, since it must run before the Next.js app exists in a fresh environment anyway).
 - **Installing `tsx` (or any package with a native postinstall) may trigger this environment's `allowScripts` gate** — run `npm approve-scripts <pkg>` (e.g. `esbuild`) to let its install script run; this isn't a security prompt to route around, just a one-time approval for a legitimate dependency.
+- **Neon's free-tier database auto-suspends after inactivity** — the first Prisma command after a gap (a new session, or just time passing) can fail with `P1001: Can't reach database server`. Just retry the same command once; Neon wakes the instance on the connection attempt, so a retry a few seconds later succeeds. Don't treat this as a real connectivity bug or go looking for a config problem.
+- **Auth.js v5's client-side `signIn()`/`signOut()` (from `next-auth/react`) use a `redirectTo` option, not the v4-era `callbackUrl`** (`callbackUrl` still exists but is deprecated in this installed version) — check `node_modules/next-auth/lib/client.d.ts` if a future next-auth upgrade changes this again.
 
 ## 13. Verification checklist (run before considering any change done)
 
@@ -177,7 +190,7 @@ Then a live browser pass via the preview tools: exercise the actual feature (not
 
 ## 14. What to do first in a new session
 
-1. Read this file, then `ROADMAP.md` to see what phase comes next (Phase 7 — Authentication & Authorization, as of this writing), then skim `ARCHITECTURE.md`/`DESIGN_SYSTEM.md`/`API.md` for whatever the task touches.
+1. Read this file, then `ROADMAP.md` to see what phase comes next (Phase 8 — Customer Accounts, as of this writing), then skim `ARCHITECTURE.md`/`DESIGN_SYSTEM.md`/`API.md`/`AUTH.md` for whatever the task touches.
 2. Check `git log` to confirm which commit you're resuming from, and `git status` for any uncommitted work.
 3. Check the project root for any new folders/files the user may have dropped.
 4. Confirm `.env`'s `DATABASE_URL` still points at a reachable Neon database (ask the user for a fresh connection string if not — there's no local fallback, and there hasn't been since Phase 6).

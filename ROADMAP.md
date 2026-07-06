@@ -1,28 +1,20 @@
 # Roadmap
 
-Everything completed so far (Phases 1–6: engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration) is described in [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing) and [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md). This document covers what's left, in the order it's expected to be tackled. **Each phase starts only with explicit approval — don't chain into the next one just because a prior one finished.**
+Everything completed so far (Phases 1–7: engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration, authentication & authorization) is described in [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing), [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md), and (for Phase 7 specifically) [AUTH.md](./AUTH.md). This document covers what's left, in the order it's expected to be tackled. **Each phase starts only with explicit approval — don't chain into the next one just because a prior one finished.**
 
-**Reordered 2026-07-06 (twice)**: Real Prisma Integration was originally scheduled after Admin Dashboard, then moved to right after Customer Accounts, and finally moved again to run **before** Authentication — the earliest point it could go. Building Auth against real Prisma from the start avoids writing a throwaway in-memory `UserRepository` just to replace it a phase later, and Customer Accounts (order history, addresses) lands on real persistence immediately too. Real Prisma Integration is now **Phase 6, complete** (Neon Postgres provisioned, first migration run, `PrismaOrderRepository` and Prisma-backed `lib/catalog.ts` live, `prisma/seed.ts` bootstraps a fresh database from the old static catalog data). Authentication, Customer Accounts, Admin Dashboard, and CMS each shift one slot earlier than the last version of this document; nothing else about their scope changed.
+**Reordered 2026-07-06 (twice)**: Real Prisma Integration was originally scheduled after Admin Dashboard, then moved to right after Customer Accounts, and finally moved again to run **before** Authentication — the earliest point it could go. Building Auth against real Prisma from the start avoided writing a throwaway in-memory `UserRepository` just to replace it a phase later, and Customer Accounts (order history, addresses) will land on real persistence immediately too.
 
-## Phase 7 — Authentication & Authorization
+## Phase 7 — Authentication & Authorization — complete
 
-- Login, Register, Forgot Password, Reset Password.
-- Email Verification architecture (verification token issuance/consumption; the actual email send is a `NotificationService`-style placeholder until a real provider is chosen — same pattern as order notifications today).
-- Session management via Auth.js (`lib/auth.ts` already scaffolded, currently dormant — no login/register UI has ever exercised it); session carries `user.id` and `user.role` (`CUSTOMER` | `ADMIN`).
-- Protected routes: `(account)` requires any authenticated session, `(admin)` requires `role === 'ADMIN'`, both gated in `src/proxy.ts` (Next.js 16's `middleware` → `proxy` rename) + layout-level checks.
-- Role-based authorization: role check at the proxy/layout AND re-checked in any sensitive Server Action, not trusted from the client.
-- Future OAuth compatibility: Auth.js's provider list should be structured so adding an OAuth provider later is a config addition, not a rework — don't hard-code assumptions that only credentials-based auth exists.
-- Registration must set `User.researchAcknowledgedAt` — same compliance requirement checkout already enforces via `Order.researchAcknowledged`. Don't ship a registration flow that skips this.
-- Guest checkout should keep working unauthenticated — auth is additive, not a checkout requirement.
-- Schema: add Auth.js's `Account`/`Session`/`VerificationToken` models and `User.emailVerified`/`image` fields as part of this phase's own migration — deliberately not added during Real Prisma Integration, since nothing exercised them yet (see `PROJECT_CONTEXT.md`).
-- With a real database already live, `authorize()` in `lib/auth.ts` can call `db.user.findUnique(...)` (directly, or via a thin `server/services/auth.ts` for layering consistency with the rest of the app) — no in-memory `UserRepository` needed at any point.
+Login, Register, Forgot/Reset Password, Email Verification (tracked via `User.emailVerified`, not enforced), Auth.js Credentials + Prisma-adapter session management with explicit security config (session `maxAge`/rolling `updateAge`, `httpOnly`/`sameSite`/`secure` cookies), protected routes (`/account/*` any session, `/admin/*` `ADMIN` role, both in `src/proxy.ts`), a 12-character + complexity password policy, and rate-limiting/audit-logging **architecture** (interfaces + no-op/console implementations — no real limiter or sink yet). OAuth and MFA are **documented extension points only**, not implemented. Full detail in **[AUTH.md](./AUTH.md)**. `server/services/auth.ts` is scoped to authentication only — see `AUTH.md#auth-vs-future-user-service` for why Phase 8 gets its own `server/services/user.ts` rather than growing this file.
 
 ## Phase 8 — Customer Accounts
 
-- Dashboard (`/account`), Profile, Address Book (CRUD on `Address`), Order History (`/account/orders`) and Order Details (`/account/orders/[id]`, reusing the confirmation page's order-summary component), Account Settings, Password Management.
+- Dashboard (replacing Phase 7's `/account` stub), Profile (owned by a new `server/services/user.ts` — see `AUTH.md#auth-vs-future-user-service`, don't add this to `auth.ts`), Address Book (CRUD on `Address`), Order History (`/account/orders`) and Order Details (`/account/orders/[id]`, reusing the confirmation page's order-summary component), Account Settings, Password Management (a logged-in "change password" flow — distinct from Phase 7's forgot/reset-password flow, though it can reuse `passwordSchema` from `lib/validations/auth.ts`).
 - Order history reads through `orders.ts`/`order-repository.ts` — same repository pattern, already Prisma-backed.
 - Guest→account cart/order association: decide at implementation time whether past guest orders can be claimed, or only orders placed while authenticated appear.
-- **Git checkpoint after Phase 7 and Phase 8 are both complete and verified — then stop for approval before Phase 9.**
+- `AccountMenuTrigger.tsx` (Header's account icon, built in Phase 7) likely grows into a real dropdown here (name/email, order history shortcut, sign out inline) — Phase 7 kept it deliberately minimal (just a link to `/account` or `/login`).
+- Git checkpoint when Phase 8 is complete and verified — then stop for approval before Phase 9.
 
 ## Phase 9 — Admin Dashboard
 

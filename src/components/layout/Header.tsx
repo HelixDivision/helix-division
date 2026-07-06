@@ -1,10 +1,11 @@
 "use client";
 
-import { Menu, Search, ShoppingBag, User } from "lucide-react";
+import { Menu, Search, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Logo } from "@/branding/logo/Logo";
+import { AccountMenuTrigger } from "@/components/account/AccountMenuTrigger";
 import { Button } from "@/components/ui/button";
 import { mainNav } from "@/config/nav";
 import { useCart } from "@/hooks/useCart";
@@ -68,14 +69,7 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Account"
-            className="hidden sm:inline-flex"
-          >
-            <User />
-          </Button>
+          <AccountMenuTrigger />
           <Button variant="ghost" size="icon" aria-label="Search" className="hidden sm:inline-flex">
             <Search />
           </Button>

@@ -6,6 +6,7 @@ import { AnnouncementBar } from "@/components/layout/AnnouncementBar";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { SessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/config/site";
@@ -64,17 +65,19 @@ export default function RootLayout({
         >
           Skip to content
         </a>
-        <ThemeProvider>
-          <AnnouncementBar message="Free discreet shipping on research orders over $200 · Research use only" />
-          <Header />
-          <MobileNav />
-          <CartDrawer />
-          <main id="main-content" className="flex min-w-0 flex-1 flex-col">
-            <div className="min-w-0 flex-1">{children}</div>
-          </main>
-          <Footer />
-          <Toaster />
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider>
+            <AnnouncementBar message="Free discreet shipping on research orders over $200 · Research use only" />
+            <Header />
+            <MobileNav />
+            <CartDrawer />
+            <main id="main-content" className="flex min-w-0 flex-1 flex-col">
+              <div className="min-w-0 flex-1">{children}</div>
+            </main>
+            <Footer />
+            <Toaster />
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -25,6 +25,8 @@ enum UserRole {
 model User {
   id                     String    @id @default(cuid())
   email                  String    @unique
+  emailVerified          DateTime?
+  image                  String?
   passwordHash           String?
   name                   String?
   role                   UserRole  @default(CUSTOMER)
@@ -36,6 +38,8 @@ model User {
   orders    Order[]
   cart      Cart?
   reviews   Review[]
+  accounts  Account[]
+  sessions  Session[]
 
   @@map("users")
 }
@@ -54,6 +58,65 @@ model Address {
 
   @@index([userId])
   @@map("addresses")
+}
+
+// Auth.js (@auth/prisma-adapter) canonical models — field names/shapes match
+// the adapter's expectations exactly (see node_modules/@auth/prisma-adapter),
+// not this project's usual camelCase-everything convention, so the adapter
+// works as a drop-in. `Session` is unused at runtime today (lib/auth.ts uses
+// `session: { strategy: "jwt" }`, not database sessions) but is required by
+// the adapter's type contract and kept for future-proofing (e.g. a switch to
+// database sessions). No OAuth provider is configured yet — `Account` exists
+// so adding one later (see lib/auth.ts's `providers` array) needs no schema
+// change, only a config addition.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Serves both email-verification and password-reset links (see
+// server/services/auth.ts's issueToken/consumeToken) — `purpose`
+// distinguishes the two so a stale verification link can't be replayed as a
+// password reset or vice versa. `token` stores a sha256 hash, never the raw
+// token (which only ever exists in the emailed/logged link itself).
+enum VerificationPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  purpose    VerificationPurpose
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
 }
 
 // ---------------------------------------------------------------------------
@@ -330,24 +393,24 @@ enum PaymentStatus {
 // One row per Order, written/read only through the PaymentProvider interface
 // (lib/payments/provider.ts) — see API.md#payment-provider-interface.
 model Payment {
-  id            String        @id @default(cuid())
-  orderId       String        @unique
-  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  method        PaymentMethod
-  status        PaymentStatus @default(PENDING)
-  amount        Decimal       @db.Decimal(10, 2)
-  currency      String        @default("USD")
-  referenceCode String? // Wise bank-transfer reference / generic provider reference code
-  btcAddress    String?
-  btcInvoiceId  String?
-  txHash        String?
+  id               String        @id @default(cuid())
+  orderId          String        @unique
+  order            Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method           PaymentMethod
+  status           PaymentStatus @default(PENDING)
+  amount           Decimal       @db.Decimal(10, 2)
+  currency         String        @default("USD")
+  referenceCode    String? // Wise bank-transfer reference / generic provider reference code
+  btcAddress       String?
+  btcInvoiceId     String?
+  txHash           String?
   // Generic provider-specific rendering payload (e.g. WiseInstructions,
   // a future NOW Payments/Coinbase Commerce hosted-checkout URL) — mirrors
   // Order.shippingAddressJson's pattern of storing a structured shape that
   // varies per provider as Json rather than one column per provider.
   instructionsJson Json?
-  confirmedAt   DateTime?
-  createdAt     DateTime      @default(now())
+  confirmedAt      DateTime?
+  createdAt        DateTime      @default(now())
 
   @@index([referenceCode])
   @@index([btcInvoiceId])
