@@ -52,7 +52,12 @@ Built on shadcn/ui primitives, styled exclusively via the tokens above.
 - **Tables** (`AdminDataTable`): sticky header, 2%-opacity zebra rows, row hover highlight.
 - **Navigation**: header is `background.base` @ 80% + blur once scrolled (via `useScroll`); active link underlined `accent.crimson`.
 - **Modals/Sheets**: `elevation.2`, `radius.xl`, scrim = `background.overlay`.
-- **Icons**: generic UI icons (lucide, via shadcn) at `foreground.muted`. Brand icons (`branding/icons`) are reserved for trust-bar/marketing contexts — never mixed into functional UI chrome.
+- **Icons**: generic UI icons (lucide, via shadcn) at `foreground.muted`. Brand icons (`branding/icons`) are reserved for trust-bar/marketing contexts — never mixed into functional UI chrome. Note: `lucide-react` doesn't ship brand/social icons — the Footer's social links use small text-badge circles (`IG`/`X`/`TT`) instead, deliberately, not as a placeholder.
+- **Checkbox** (`ui/checkbox.tsx`, Phase 5) — wraps `@base-ui/react/checkbox`. Checked state uses `data-[checked]:bg-accent-crimson data-[checked]:text-foreground-primary data-[checked]:border-accent-crimson` — **Helix tokens, not generic shadcn `bg-primary`/`text-primary-foreground` tokens**, which don't exist in this theme. Used for the required research-acknowledgment checkbox at checkout.
+- **Radio Group** (`ui/radio-group.tsx`, Phase 5) — wraps `@base-ui/react/radio-group`, same `data-slot`/`cn`/focus-visible/aria-invalid conventions as `select.tsx`/`checkbox.tsx`. Used for payment-method selection at checkout (rendered from `getEnabledProviders()`, never a hardcoded list).
+- **Pagination** (`shop/Pagination.tsx`, Phase 4) — page-number + prev/next control for the shop catalog. Compact flex layout; no responsive breakpoint prefixes needed today since it's a single-row control at all widths, but revisit if it grows a page-size selector.
+- **Breadcrumbs** (`shop/Breadcrumbs.tsx`, Phase 4) — text-link trail (Home / Shop / Category / Product), `foreground.muted` with `accent.crimson` on the active/final crumb.
+- **Checkout Stepper** (inline in `checkout/CheckoutWizard.tsx`, Phase 5) — 2-step indicator (Information → Review), same crimson-active/muted-inactive convention as Breadcrumbs rather than a new token set.
 
 ## Motion System
 

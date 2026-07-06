@@ -7,7 +7,9 @@ import { toast } from "sonner";
 import { QuantitySelector } from "@/components/shop/QuantitySelector";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/hooks/useCart";
+import { analyticsService } from "@/lib/analytics";
 import { getStockStatus } from "@/lib/stock-status";
+import { useUiStore } from "@/store/ui-store";
 import type { CatalogProduct } from "@/types/catalog";
 
 interface AddToCartButtonProps {
@@ -19,6 +21,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
   const variant = product.variants[0];
   const stockStatus = getStockStatus(variant);
   const { addLine } = useCart();
+  const openCartDrawer = useUiStore((s) => s.openCartDrawer);
   const [quantity, setQuantity] = useState(1);
 
   if (stockStatus === "coming-soon") {
@@ -40,7 +43,9 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
       price: variant.price ?? 0,
       image: product.images[0]?.url ?? null,
     });
+    analyticsService.track("add_to_cart", { productId: product.id, quantity });
     toast.success(`${quantity} × ${product.name} added to cart`);
+    openCartDrawer();
   }
 
   return (

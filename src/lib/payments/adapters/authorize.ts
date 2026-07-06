@@ -1,5 +1,5 @@
-import type { Order } from "@/generated/prisma/client";
 import type {
+  PaymentOrderInput,
   PaymentProvider,
   PaymentRequestResult,
   PaymentStatus,
@@ -7,24 +7,26 @@ import type {
 } from "@/lib/payments/types";
 
 /**
- * Scaffolded, disabled by default — Authorize.net is high-risk-merchant
- * friendly and is the recommended fallback if Wise/Bitcoin need a card-based
- * companion later (see ARCHITECTURE.md#payment-architecture). Enable via
- * PAYMENT_PROVIDERS_ENABLED once AUTHORIZE_API_LOGIN_ID/AUTHORIZE_TRANSACTION_KEY
- * are configured and this adapter's HTTP integration is implemented.
+ * Scaffolded example adapter, disabled by default and not one of the three
+ * decided production providers (NOW Payments, Coinbase Commerce, Wise — see
+ * ARCHITECTURE.md#payment-architecture). Kept registered as a possible
+ * future card-based option if one is ever needed; enabling it is a config
+ * change (PAYMENT_PROVIDERS_ENABLED + AUTHORIZE_API_LOGIN_ID/
+ * AUTHORIZE_TRANSACTION_KEY) plus implementing the HTTP calls below, not a
+ * checkout change.
  */
 export const authorizeAdapter: PaymentProvider = {
   id: "authorize",
 
-  async createPaymentRequest(_order: Order): Promise<PaymentRequestResult> {
-    throw new Error("Authorize.net adapter not yet implemented — Phase 2.");
+  async createPaymentRequest(_order: PaymentOrderInput): Promise<PaymentRequestResult> {
+    throw new Error("Authorize.net adapter not yet implemented.");
   },
 
   async checkStatus(_paymentRef: string): Promise<PaymentStatus> {
-    throw new Error("Authorize.net adapter not yet implemented — Phase 2.");
+    throw new Error("Authorize.net adapter not yet implemented.");
   },
 
   async handleWebhook(_payload: unknown): Promise<WebhookResult> {
-    throw new Error("Authorize.net adapter not yet implemented — Phase 2.");
+    throw new Error("Authorize.net adapter not yet implemented.");
   },
 };

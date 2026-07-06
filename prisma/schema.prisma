@@ -247,10 +247,16 @@ model CartItem {
 // API.md#payment-provider-interface)
 // ---------------------------------------------------------------------------
 
+// Expanded granularity vs. a single PENDING_PAYMENT/CONFIRMED pair — see
+// PROJECT_CONTEXT.md Phase 5 notes. PENDING = order row created, before
+// payment instructions are issued; AWAITING_PAYMENT = instructions issued,
+// waiting on the customer; PAYMENT_CONFIRMED = a human/webhook has verified
+// funds (distinct from PAYMENT_SUBMITTED, which is just the customer's claim).
 enum OrderStatus {
-  PENDING_PAYMENT
+  PENDING
+  AWAITING_PAYMENT
   PAYMENT_SUBMITTED
-  CONFIRMED
+  PAYMENT_CONFIRMED
   PROCESSING
   SHIPPED
   DELIVERED
@@ -264,9 +270,13 @@ model Order {
   userId               String?
   user                 User?       @relation(fields: [userId], references: [id])
   email                String
-  status               OrderStatus @default(PENDING_PAYMENT)
+  status               OrderStatus @default(PENDING)
   subtotal             Decimal     @db.Decimal(10, 2)
+  // Reserved for future coupon support (src/server/services/discounts.ts) —
+  // always 0 today, but total is computed as subtotal - discount + shipping + tax.
+  discount             Decimal     @default(0) @db.Decimal(10, 2)
   shippingCost         Decimal     @default(0) @db.Decimal(10, 2)
+  tax                  Decimal     @default(0) @db.Decimal(10, 2)
   total                Decimal     @db.Decimal(10, 2)
   currency             String      @default("USD")
   shippingAddressJson  Json
@@ -295,8 +305,13 @@ model OrderItem {
   @@map("order_items")
 }
 
+// Decided production providers: WISE, NOW_PAYMENTS, COINBASE_COMMERCE (see
+// ARCHITECTURE.md#payment-architecture). BITCOIN/STRIPE/AUTHORIZE remain as
+// optional/example adapters, not primary choices.
 enum PaymentMethod {
   WISE
+  NOW_PAYMENTS
+  COINBASE_COMMERCE
   BITCOIN
   MANUAL
   STRIPE

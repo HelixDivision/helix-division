@@ -1,30 +1,27 @@
-import type { Order } from "@/generated/prisma/client";
 import type {
+  PaymentOrderInput,
   PaymentProvider,
   PaymentRequestResult,
   PaymentStatus,
   WebhookResult,
+  WiseInstructions,
 } from "@/lib/payments/types";
 
-export interface WiseInstructions {
-  accountHolder: string;
-  iban: string;
-  bic: string;
-  referenceCode: string;
-  amount: string;
-  currency: string;
-}
-
 /**
- * Manual bank-transfer reconciliation via Wise. There is no public Wise API
- * usable for this flow, so `checkStatus`/`handleWebhook` are placeholders —
- * the real confirmation path is an admin marking the order paid in the
- * payments queue (Phase 2) after checking the Wise business account.
+ * Manual bank-transfer reconciliation via Wise — one of the three decided
+ * production providers (alongside NOW Payments and Coinbase Commerce; see
+ * ARCHITECTURE.md#payment-architecture). The only fully functional adapter
+ * today (no external API needed). There is no public Wise API usable for
+ * this flow, so `checkStatus`/`handleWebhook` are placeholders — the real
+ * confirmation path is an admin marking the order paid in the admin payments
+ * queue (see ROADMAP.md — Admin Dashboard) after checking the Wise business
+ * account; `confirmPaymentSubmitted` in server/services/orders.ts only
+ * records the customer's claim ("I've sent it"), not admin confirmation.
  */
 export const wiseAdapter: PaymentProvider = {
   id: "wise",
 
-  async createPaymentRequest(order: Order): Promise<PaymentRequestResult> {
+  async createPaymentRequest(order: PaymentOrderInput): Promise<PaymentRequestResult> {
     const referenceCode = order.orderNumber;
 
     const instructions: WiseInstructions = {
@@ -40,9 +37,10 @@ export const wiseAdapter: PaymentProvider = {
   },
 
   async checkStatus(_paymentRef: string): Promise<PaymentStatus> {
-    // No live Wise API call — status only changes via admin action or
-    // submitPaymentConfirmation (Phase 2). Callers should read Payment.status
-    // from the DB rather than relying on this for Wise.
+    // No live Wise API call — status only changes via confirmPaymentSubmitted
+    // (customer claim) or a future admin action (admin confirmation). Callers
+    // should read the order's payment status directly rather than relying on
+    // this for Wise.
     return "pending";
   },
 

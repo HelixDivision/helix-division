@@ -1,33 +1,48 @@
 # Internal API Surface
 
-Server Actions, webhook endpoints, and the interface contracts other engineers (or future adapters) build against. This isn't a public API — it's the internal contract between layers described in [ARCHITECTURE.md](./ARCHITECTURE.md).
+Server Actions, Repository/Service contracts, and the Payment Provider interface — the internal contracts between layers described in [ARCHITECTURE.md](./ARCHITECTURE.md). Not a public API.
 
 ## Payment Provider Interface
 
-Defined in `src/lib/payments/provider.ts`. Every adapter under `lib/payments/adapters/` implements this; checkout/order code depends only on this interface, never on a named adapter (see [PROJECT_RULES.md](./PROJECT_RULES.md#payments)).
+Defined in `src/lib/payments/types.ts` (the interface + shared payload types); the registry/factory functions live in `src/lib/payments/provider.ts`. Every adapter under `lib/payments/adapters/` implements this; checkout/order code depends only on this interface, never on a named adapter (see [PROJECT_RULES.md](./PROJECT_RULES.md#payments)).
+
+**Decided production providers: `wise`, `now-payments`, `coinbase-commerce`.** `bitcoin`, `manual`, `stripe`, `authorize` remain registered as optional/example adapters — treat them as such in any code or docs you write, not as candidates for production.
 
 ```ts
 interface PaymentProvider {
-  id: string; // "wise" | "bitcoin" | "manual" | "stripe" | "authorize"
+  id: string; // "wise" | "now-payments" | "coinbase-commerce" | "bitcoin" | "manual" | "stripe" | "authorize"
 
-  // Called at checkout once an Order (status: pending_payment) exists.
-  // Returns whatever the payment step needs to render (bank details + reference,
-  // or an invoice address/QR, or a redirect URL for hosted checkouts).
-  createPaymentRequest(order: Order): Promise<PaymentRequestResult>;
+  // Called at checkout once an Order exists (status: AWAITING_PAYMENT).
+  // Takes a plain domain type, NOT the Prisma-generated Order — keeps this
+  // layer decoupled from the ORM even while order data is served by the
+  // in-memory repository.
+  createPaymentRequest(order: PaymentOrderInput): Promise<PaymentRequestResult>;
 
   // Polled or called on-demand (e.g. customer refreshes the payment page).
   checkStatus(paymentRef: string): Promise<PaymentStatus>;
 
-  // Invoked by the matching /api/webhooks/[provider] route. Verifies signature/
-  // auth internally, returns a normalized result the order service acts on.
+  // Invoked by the matching /api/webhooks/[provider] route (not built yet).
+  // Verifies signature/auth internally, returns a normalized result the
+  // order service acts on.
   handleWebhook(payload: unknown): Promise<WebhookResult>;
+
+  // Optional — only implement for providers that support programmatic
+  // cancellation. No adapter implements this today.
+  cancelPayment?(paymentRef: string): Promise<void>;
 }
 
 type PaymentStatus = "pending" | "submitted" | "confirmed" | "failed";
 
+interface PaymentOrderInput {
+  id: string;
+  orderNumber: string;
+  total: number;
+  currency: string;
+}
+
 interface PaymentRequestResult {
   providerRef: string;        // reference code, invoice ID, or txn ID
-  instructions: unknown;      // provider-specific rendering payload
+  instructions: unknown;      // provider-specific rendering payload — see WiseInstructions/BitcoinInvoice below
   status: PaymentStatus;
 }
 
@@ -36,35 +51,148 @@ interface WebhookResult {
   status: PaymentStatus;
   confirmedAt?: Date;
 }
+
+// Provider-specific `instructions` payload shapes, kept in types.ts so
+// consumers (e.g. the payment page) can import them without importing a
+// named adapter module:
+interface WiseInstructions {
+  accountHolder: string;
+  iban: string;
+  bic: string;
+  referenceCode: string;
+  amount: string;
+  currency: string;
+}
+interface BitcoinInvoice {
+  invoiceId: string;
+  checkoutUrl: string;
+  address: string | null;
+}
 ```
 
-Registering a provider: add the adapter file, then register it in `provider.ts`'s registry keyed by `id`. The active set is read from `PAYMENT_PROVIDERS_ENABLED` (see [README.md](./README.md#environment-variables)).
+**Adapter status today**:
+
+| Adapter | id | Status |
+|---|---|---|
+| Wise | `wise` | **Functional** — only adapter with a real implementation (bank-transfer instructions; no live API) |
+| NOW Payments | `now-payments` | Scaffolded — throws until the real API is integrated (see [ROADMAP.md](./ROADMAP.md)) |
+| Coinbase Commerce | `coinbase-commerce` | Scaffolded — throws until the real API is integrated (see [ROADMAP.md](./ROADMAP.md)) |
+| Bitcoin (BTCPay) | `bitcoin` | Scaffolded example, optional, disabled by default |
+| Manual | `manual` | Functional — generic offline reconciliation fallback |
+| Stripe | `stripe` | Scaffolded example, optional, disabled by default |
+| Authorize.net | `authorize` | Scaffolded example, optional, disabled by default |
+
+Registering a new provider: add the adapter file implementing `PaymentProvider`, register it in `provider.ts`'s registry keyed by `id`, add a label in `provider-labels.ts`. The active set is read from `PAYMENT_PROVIDERS_ENABLED` (see [README.md](./README.md#environment-variables)) via `getEnabledProviders()`; `getProvider(id)` looks up a single adapter. **No checkout/order code changes required** to add a provider — demonstrated when `now-payments`/`coinbase-commerce` were added.
 
 ## Webhook Endpoints
 
+Not built yet — routes below are planned, per [ROADMAP.md](./ROADMAP.md):
+
 | Route | Provider | Verifies | Effect |
 |---|---|---|---|
-| `POST /api/webhooks/btcpay` | Bitcoin (BTCPay Server) | BTCPay webhook signature header | Calls `bitcoin.ts`'s `handleWebhook` → order service moves `Payment.status` to `confirmed`/`failed` |
-| `POST /api/webhooks/stripe` | Stripe (scaffolded, inactive until enabled) | Stripe signing secret | Same pattern, routed through `stripe.ts` |
+| `POST /api/webhooks/now-payments` | NOW Payments | IPN signature (`NOWPAYMENTS_IPN_SECRET`) | Calls `now-payments.ts`'s `handleWebhook` → `orders.ts` moves order to `PAYMENT_CONFIRMED` |
+| `POST /api/webhooks/coinbase-commerce` | Coinbase Commerce | `X-CC-Webhook-Signature` header (`COINBASE_COMMERCE_WEBHOOK_SECRET`) | Same pattern, routed through `coinbase-commerce.ts` |
+| `POST /api/webhooks/btcpay` | Bitcoin (BTCPay Server, optional) | BTCPay webhook signature header | Same pattern, routed through `bitcoin.ts` |
+| `POST /api/webhooks/stripe` | Stripe (optional, inactive) | Stripe signing secret | Same pattern, routed through `stripe.ts` |
 
-Wise has no webhook (no public API for this use case) — reconciliation is manual via the admin payments queue, which calls `checkStatus`/an admin-triggered "mark confirmed" action that updates `Payment` directly.
+Wise and Manual have no webhook — reconciliation is via the customer's "I've sent the transfer" confirmation (`confirmPaymentSentAction`) plus a future admin "mark confirmed" action.
+
+## Order Repository Interface
+
+Defined in `src/server/repositories/order-repository.ts`. **Only `src/server/services/orders.ts` may import this** — see [ARCHITECTURE.md#repository-architecture](./ARCHITECTURE.md#repository-architecture).
+
+```ts
+interface OrderRepository {
+  create(input: CreateOrderInput): Promise<OrderRecord>;
+  findById(orderId: string): Promise<OrderRecord | null>;
+  attachPayment(orderId: string, payment: PaymentRecord): Promise<OrderRecord>;
+  updateStatus(orderId: string, status: OrderStatus): Promise<OrderRecord>;
+  updatePaymentStatus(orderId: string, status: PaymentStatus): Promise<OrderRecord>;
+}
+```
+
+`InMemoryOrderRepository` is the only implementation today (HMR-safe `Map` on `globalThis`). A future Prisma-backed implementation must satisfy the same interface — no other file should need to change.
+
+## Service Contracts (`src/server/services/`)
+
+Each service owns one concern; only `orders.ts` composes all of them (plus the repository and the payment registry). See [ARCHITECTURE.md#service-layer-architecture](./ARCHITECTURE.md#service-layer-architecture) for the full pricing pipeline and inventory-reservation-by-provider rationale.
+
+```ts
+// shipping.ts
+interface ShippingService {
+  calculateShipping(subtotal: number, config?: ShippingConfig): number;
+}
+
+// tax.ts
+interface TaxService {
+  calculateTax(input: { subtotal: number; discount: number; shippingCost: number; region?: string }): number;
+}
+
+// discounts.ts
+interface DiscountService {
+  calculateDiscount(input: { subtotal: number; couponCode?: string }): number;
+}
+
+// inventory.ts
+type ReservationStrategy = "reserve-on-order" | "reserve-on-payment-confirmed";
+interface ReservationPolicy { strategy: ReservationStrategy; holdDurationMinutes?: number; }
+interface InventoryService {
+  getReservationPolicy(providerId: string): ReservationPolicy;
+  reserveInventory(input: { orderId: string; lines: OrderItemRecord[] }): Promise<void>;
+  releaseInventory(orderId: string): Promise<void>;
+  confirmInventoryDeduction(orderId: string): Promise<void>;
+}
+
+// notifications.ts
+interface NotificationService {
+  sendOrderConfirmation(order: OrderRecord): Promise<void>;
+  sendPaymentReceived(order: OrderRecord): Promise<void>;
+  sendShipmentNotification(order: OrderRecord): Promise<void>;
+}
+
+// lib/analytics.ts (not server/services — fires from client components too)
+type AnalyticsEvent = "product_viewed" | "add_to_cart" | "begin_checkout" | "place_order" | "payment_submitted";
+interface AnalyticsService {
+  track(event: AnalyticsEvent, payload?: Record<string, unknown>): void;
+}
+```
+
+`orders.ts` orchestration entry points (the only functions checkout Server Actions call):
+
+```ts
+createOrder(input: CreateOrderInput): Promise<OrderRecord>;
+createPaymentForOrder(orderId: string, providerId: string): Promise<OrderRecord>;
+confirmPaymentSubmitted(orderId: string, providerId: string): Promise<OrderRecord>;
+```
+
+## Catalog Read Functions
+
+`src/lib/catalog.ts` (client-safe) — re-exported by `src/server/services/catalog.ts` for server pages:
+
+```ts
+getCategories(): Category[];
+getCategoryBySlug(slug: string): Category | undefined;
+getProducts(params: GetProductsParams): GetProductsResult;
+getProductBySlug(categorySlug: string, productSlug: string): Product | undefined;
+getFeaturedProducts(limit?: number): Product[];
+getRelatedProducts(product: Product, limit?: number): Product[];
+```
+
+`"use client"` components import from `@/lib/catalog` directly (never `@/server/services/*` or `@/server/repositories/*`); server pages import from `@/server/services/catalog` by convention.
 
 ## Server Actions (`src/server/actions/`)
 
 Actions validate input via `lib/validations` (zod) and delegate to `server/services/`. Naming: `verbNoun`.
 
-| Action (file) | Purpose |
-|---|---|
-| `cart.ts` — `addToCart`, `updateCartItem`, `removeFromCart`, `mergeGuestCart` | Cart mutations; guest cart merge runs on login |
-| `checkout.ts` — `createOrder`, `submitPaymentConfirmation` | Creates the `Order`+`Payment` pair; `submitPaymentConfirmation` is the Wise "I've sent it" step |
-| `products.ts` — read helpers backing ISR revalidation (`revalidateProduct`) | Triggered on admin product mutation |
-| `admin-products.ts`, `admin-orders.ts`, `admin-payments.ts` | Admin CRUD/status-transition actions, role-checked in the action itself in addition to the layout guard |
-
-Exact signatures are defined alongside each action file as it's built (Phase 2) — this table is the index, not the spec.
+| Action (file) | Purpose | Status |
+|---|---|---|
+| `checkout.ts` — `createOrderAction`, `confirmPaymentSentAction` | `createOrderAction` validates checkout form data via `lib/validations/checkout.ts`, calls `orders.createOrder` + `orders.createPaymentForOrder`, returns the new `orderId`. `confirmPaymentSentAction` calls `orders.confirmPaymentSubmitted`. | **Built** — Phase 5 |
+| Cart mutations | Cart has no Server Action layer — it's pure client state (`useCartStore`, Zustand + localStorage persist), since there's nothing server-side to validate or persist for an anonymous, pre-checkout cart. | **By design, not a gap** |
+| `admin-products.ts`, `admin-orders.ts`, `admin-payments.ts` | Admin CRUD/status-transition actions, role-checked in the action itself in addition to the layout guard | **Not built** — see [ROADMAP.md](./ROADMAP.md) |
 
 ## Content Repository (`src/lib/content/`)
 
-Abstraction over `Page`, `Article`, `FAQItem` so a future CMS swap (e.g. Sanity/Payload) only touches this layer.
+Not built yet. Planned abstraction over `Page`, `Article`, `FAQItem` so a future CMS swap (e.g. Sanity/Payload) only touches this layer:
 
 ```ts
 interface ContentRepository {
@@ -75,8 +203,8 @@ interface ContentRepository {
 }
 ```
 
-Pages/components call this interface (via `lib/content/index.ts`), never Prisma directly, for any marketing/editorial content.
+Today's homepage/FAQ copy is hardcoded directly in `components/home/*` — pages/components should call this interface (never Prisma directly) once it exists, for any marketing/editorial content. See [ROADMAP.md](./ROADMAP.md) — CMS phase.
 
 ## Auth
 
-Auth.js (`lib/auth.ts`) issues sessions carrying `user.id` and `user.role` (`CUSTOMER` | `ADMIN`). `(admin)` routes are gated in `src/proxy.ts` (Next.js 16's `middleware` → `proxy` file convention, Node.js runtime by default) + the admin layout by checking `role === 'ADMIN'`; sensitive admin Server Actions re-check role server-side rather than trusting the proxy/layout guard alone.
+Not built yet. Planned: Auth.js (`lib/auth.ts`) issues sessions carrying `user.id` and `user.role` (`CUSTOMER` | `ADMIN`). `(admin)` routes will be gated in `src/proxy.ts` (Next.js 16's `middleware` → `proxy` file convention, Node.js runtime by default) + the admin layout by checking `role === 'ADMIN'`; sensitive admin Server Actions should re-check role server-side rather than trusting the proxy/layout guard alone. See [ROADMAP.md](./ROADMAP.md) — Authentication phase.

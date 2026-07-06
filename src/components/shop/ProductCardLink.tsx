@@ -4,8 +4,10 @@ import { toast } from "sonner";
 
 import { ProductCard } from "@/components/shop/ProductCard";
 import { useCart } from "@/hooks/useCart";
+import { analyticsService } from "@/lib/analytics";
+import { getCategoryBySlug } from "@/lib/catalog";
 import { getStockStatus } from "@/lib/stock-status";
-import { getCategoryBySlug } from "@/server/services/catalog";
+import { useUiStore } from "@/store/ui-store";
 import type { CatalogProduct } from "@/types/catalog";
 
 interface ProductCardLinkProps {
@@ -23,6 +25,7 @@ export function ProductCardLink({ product, onQuickView }: ProductCardLinkProps) 
   const variant = product.variants[0];
   const category = getCategoryBySlug(product.categorySlug);
   const { addLine } = useCart();
+  const openCartDrawer = useUiStore((s) => s.openCartDrawer);
   const stockStatus = getStockStatus(variant);
   const image = product.images[0];
 
@@ -35,7 +38,9 @@ export function ProductCardLink({ product, onQuickView }: ProductCardLinkProps) 
       price: variant.price ?? 0,
       image: image?.url ?? null,
     });
+    analyticsService.track("add_to_cart", { productId: product.id, quantity: 1 });
     toast.success(`${product.name} added to cart`);
+    openCartDrawer();
   }
 
   return (

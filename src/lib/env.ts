@@ -12,14 +12,23 @@ const envSchema = z.object({
   NEXTAUTH_URL: z.string().url(),
   NEXT_PUBLIC_SITE_URL: z.string().url(),
 
+  // Decided production providers: wise, now-payments, coinbase-commerce —
+  // see ARCHITECTURE.md#payment-architecture. bitcoin/stripe/authorize
+  // remain registered as optional/example adapters, not defaults.
   PAYMENT_PROVIDERS_ENABLED: z
     .string()
-    .default("wise,bitcoin")
+    .default("wise")
     .transform((v) => v.split(",").map((id) => id.trim()) as string[]),
 
   WISE_ACCOUNT_HOLDER: z.string().optional(),
   WISE_IBAN: z.string().optional(),
   WISE_BIC: z.string().optional(),
+
+  NOWPAYMENTS_API_KEY: z.string().optional(),
+  NOWPAYMENTS_IPN_SECRET: z.string().optional(),
+
+  COINBASE_COMMERCE_API_KEY: z.string().optional(),
+  COINBASE_COMMERCE_WEBHOOK_SECRET: z.string().optional(),
 
   BTCPAY_URL: z.string().optional(),
   BTCPAY_API_KEY: z.string().optional(),

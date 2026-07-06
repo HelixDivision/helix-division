@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 import { ProductCardLink } from "@/components/shop/ProductCardLink";
 import { ProductCarousel } from "@/components/shop/ProductCarousel";
-import { getProductBySlug } from "@/server/services/catalog";
+import { getProductBySlug } from "@/lib/catalog";
 import { useRecentlyViewedStore } from "@/store/recently-viewed-store";
 import type { CatalogProduct } from "@/types/catalog";
 

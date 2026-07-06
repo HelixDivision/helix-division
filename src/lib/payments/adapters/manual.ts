@@ -1,5 +1,5 @@
-import type { Order } from "@/generated/prisma/client";
 import type {
+  PaymentOrderInput,
   PaymentProvider,
   PaymentRequestResult,
   PaymentStatus,
@@ -14,7 +14,7 @@ import type {
 export const manualAdapter: PaymentProvider = {
   id: "manual",
 
-  async createPaymentRequest(order: Order): Promise<PaymentRequestResult> {
+  async createPaymentRequest(order: PaymentOrderInput): Promise<PaymentRequestResult> {
     return {
       providerRef: order.orderNumber,
       instructions: { note: "Awaiting manual confirmation by an administrator." },

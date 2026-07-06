@@ -1,5 +1,5 @@
-import type { Order } from "@/generated/prisma/client";
 import type {
+  PaymentOrderInput,
   PaymentProvider,
   PaymentRequestResult,
   PaymentStatus,
@@ -7,16 +7,17 @@ import type {
 } from "@/lib/payments/types";
 
 /**
- * Scaffolded, disabled by default — Stripe's ToS prohibits research-chemical
- * merchants (see ARCHITECTURE.md#payment-architecture). Kept as a real
- * adapter target so it can be enabled later (e.g. for a non-restricted
- * product line) purely via PAYMENT_PROVIDERS_ENABLED, with no checkout
- * changes required.
+ * Scaffolded example adapter, disabled by default and not one of the three
+ * decided production providers (NOW Payments, Coinbase Commerce, Wise — see
+ * ARCHITECTURE.md#payment-architecture) — Stripe's ToS prohibits
+ * research-chemical merchants. Kept registered as a real adapter target so
+ * it could be enabled later for a non-restricted product line purely via
+ * PAYMENT_PROVIDERS_ENABLED, with no checkout changes required.
  */
 export const stripeAdapter: PaymentProvider = {
   id: "stripe",
 
-  async createPaymentRequest(_order: Order): Promise<PaymentRequestResult> {
+  async createPaymentRequest(_order: PaymentOrderInput): Promise<PaymentRequestResult> {
     throw new Error(
       "Stripe adapter is scaffolded but not implemented. Do not enable without confirming merchant category eligibility.",
     );

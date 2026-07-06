@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Oswald } from "next/font/google";
 
+import { CartDrawer } from "@/components/cart/CartDrawer";
 import { AnnouncementBar } from "@/components/layout/AnnouncementBar";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
@@ -67,6 +68,7 @@ export default function RootLayout({
           <AnnouncementBar message="Free discreet shipping on research orders over $200 · Research use only" />
           <Header />
           <MobileNav />
+          <CartDrawer />
           <main id="main-content" className="flex flex-1 flex-col">
             {children}
           </main>
