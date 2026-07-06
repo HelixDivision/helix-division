@@ -1,0 +1,184 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-display);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Radius scale — literal values per DESIGN_SYSTEM.md#radius--elevation,
+     not multiplier-derived, so components land on exact spec (buttons/inputs
+     use md, cards use lg, modals use xl). */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-4xl: 9999px;
+
+  /* Helix Division brand tokens — see DESIGN_SYSTEM.md#color, mirrors
+     src/branding/tokens/colors.ts. Keep both numerically in sync. */
+  --color-background-base: var(--hd-background-base);
+  --color-background-raised: var(--hd-background-raised);
+  --color-background-overlay: var(--hd-background-overlay);
+  --color-foreground-primary: var(--hd-foreground-primary);
+  --color-foreground-muted: var(--hd-foreground-muted);
+  --color-border-default: var(--hd-border-default);
+  --color-accent-crimson: var(--hd-accent-crimson);
+  --color-accent-gunmetal: var(--hd-accent-gunmetal);
+  --color-accent-bronze: var(--hd-accent-bronze);
+  --color-state-success: var(--hd-state-success);
+  --color-state-warning: var(--hd-state-warning);
+  --color-state-danger: var(--hd-state-danger);
+
+  /* Elevation — see DESIGN_SYSTEM.md#radius--elevation, mirrors
+     src/branding/tokens/elevation.ts. Hairline border + soft blur, no
+     light-mode-style drop shadows. */
+  --shadow-elevation-1: var(--hd-shadow-elevation-1);
+  --shadow-elevation-2: var(--hd-shadow-elevation-2);
+}
+
+/*
+ * Helix Division has one locked visual identity (dark, tactical/biotech) —
+ * there is no separate light-mode brand, so :root itself carries the dark
+ * palette rather than gating it behind a .dark class. The .dark class below
+ * is kept identical for compatibility with shadcn components that key off it.
+ */
+:root {
+  --hd-background-base: #0a0a0b;
+  --hd-background-raised: #141416;
+  --hd-background-overlay: rgb(0 0 0 / 70%);
+  --hd-foreground-primary: #f2f2f0;
+  --hd-foreground-muted: #9a9a9e;
+  --hd-border-default: #26262a;
+  --hd-accent-crimson: #b3121b;
+  --hd-accent-gunmetal: #8a8d91;
+  --hd-accent-bronze: #8b7355;
+  --hd-state-success: #3e8b5c;
+  --hd-state-warning: #c08a2e;
+  --hd-state-danger: #b3121b;
+  --hd-shadow-elevation-1: 0 1px 0 0 var(--hd-border-default), 0 8px 16px -4px rgb(0 0 0 / 40%);
+  --hd-shadow-elevation-2: 0 1px 0 0 var(--hd-border-default), 0 24px 48px -12px rgb(0 0 0 / 55%);
+
+  --background: var(--hd-background-base);
+  --foreground: var(--hd-foreground-primary);
+  --card: var(--hd-background-raised);
+  --card-foreground: var(--hd-foreground-primary);
+  --popover: var(--hd-background-raised);
+  --popover-foreground: var(--hd-foreground-primary);
+  --primary: var(--hd-accent-crimson);
+  --primary-foreground: var(--hd-foreground-primary);
+  --secondary: #1c1c1f;
+  --secondary-foreground: var(--hd-foreground-primary);
+  --muted: #1c1c1f;
+  --muted-foreground: var(--hd-foreground-muted);
+  --accent: #1c1c1f;
+  --accent-foreground: var(--hd-foreground-primary);
+  --destructive: var(--hd-state-danger);
+  --border: var(--hd-border-default);
+  --input: var(--hd-border-default);
+  --ring: rgb(179 18 27 / 50%);
+  --chart-1: var(--hd-accent-crimson);
+  --chart-2: var(--hd-accent-gunmetal);
+  --chart-3: var(--hd-accent-bronze);
+  --chart-4: var(--hd-state-success);
+  --chart-5: var(--hd-state-warning);
+  --sidebar: var(--hd-background-raised);
+  --sidebar-foreground: var(--hd-foreground-primary);
+  --sidebar-primary: var(--hd-accent-crimson);
+  --sidebar-primary-foreground: var(--hd-foreground-primary);
+  --sidebar-accent: #1c1c1f;
+  --sidebar-accent-foreground: var(--hd-foreground-primary);
+  --sidebar-border: var(--hd-border-default);
+  --sidebar-ring: rgb(179 18 27 / 50%);
+}
+
+.dark {
+  --background: var(--hd-background-base);
+  --foreground: var(--hd-foreground-primary);
+  --card: var(--hd-background-raised);
+  --card-foreground: var(--hd-foreground-primary);
+  --popover: var(--hd-background-raised);
+  --popover-foreground: var(--hd-foreground-primary);
+  --primary: var(--hd-accent-crimson);
+  --primary-foreground: var(--hd-foreground-primary);
+  --secondary: #1c1c1f;
+  --secondary-foreground: var(--hd-foreground-primary);
+  --muted: #1c1c1f;
+  --muted-foreground: var(--hd-foreground-muted);
+  --accent: #1c1c1f;
+  --accent-foreground: var(--hd-foreground-primary);
+  --destructive: var(--hd-state-danger);
+  --border: var(--hd-border-default);
+  --input: var(--hd-border-default);
+  --ring: rgb(179 18 27 / 50%);
+  --chart-1: var(--hd-accent-crimson);
+  --chart-2: var(--hd-accent-gunmetal);
+  --chart-3: var(--hd-accent-bronze);
+  --chart-4: var(--hd-state-success);
+  --chart-5: var(--hd-state-warning);
+  --sidebar: var(--hd-background-raised);
+  --sidebar-foreground: var(--hd-foreground-primary);
+  --sidebar-primary: var(--hd-accent-crimson);
+  --sidebar-primary-foreground: var(--hd-foreground-primary);
+  --sidebar-accent: #1c1c1f;
+  --sidebar-accent-foreground: var(--hd-foreground-primary);
+  --sidebar-border: var(--hd-border-default);
+  --sidebar-ring: rgb(179 18 27 / 50%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Used by ProductCarousel — native scroll-snap row with a hidden scrollbar (arrow buttons + swipe are the intended controls). */
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

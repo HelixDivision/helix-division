@@ -1,0 +1,451 @@
+// Helix Division database schema — see ARCHITECTURE.md#database-schema-core-models.
+// v1 models are load-bearing for Phase 2. Models marked "v2 stub" exist so the
+// admin architecture (ARCHITECTURE.md#admin-module-map) has a home to grow
+// into without a schema migration surprise later — they are intentionally
+// minimal until their admin module is actually built.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Auth / Users
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+model User {
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  passwordHash           String?
+  name                   String?
+  role                   UserRole  @default(CUSTOMER)
+  researchAcknowledgedAt DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  addresses Address[]
+  orders    Order[]
+  cart      Cart?
+  reviews   Review[]
+
+  @@map("users")
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  line1      String
+  line2      String?
+  city       String
+  region     String?
+  postalCode String
+  country    String
+  phone      String?
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog — category-agnostic (see ARCHITECTURE.md#product--catalog-model)
+// ---------------------------------------------------------------------------
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model Category {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  // Describes which attribute keys/labels this category's products expose
+  // (e.g. [{ "key": "dosage", "label": "Dosage" }] for peptides,
+  // [{ "key": "size", "label": "Size" }, { "key": "color", "label": "Color" }]
+  // for merch) — drives the generic PDP/filter UI without per-category code.
+  attributeSchema Json     @default("[]")
+  createdAt       DateTime @default(now())
+
+  // Subcategories are Category rows, not a hardcoded string field — same
+  // "category is data not code" principle as attributeSchema above.
+  parentId      String?
+  parent        Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  subcategories Category[] @relation("CategoryHierarchy")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+enum ShippingClass {
+  STANDARD
+  COLD_CHAIN
+  HAZMAT
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  name            String
+  slug            String        @unique
+  description     String
+  researchSummary String?
+  categoryId      String
+  category        Category      @relation(fields: [categoryId], references: [id])
+  status          ProductStatus @default(DRAFT)
+  seoTitle        String?
+  seoDescription  String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Research-chemical-specific specifications — optional because most
+  // products won't have every field populated at launch, but the PDP's
+  // Specifications section is architected around this shape from day one
+  // (see PROJECT_CONTEXT.md Phase 4 notes).
+  purity              String?
+  molecularWeight     String?
+  casNumber           String?
+  sequence            String?
+  storageInstructions String?
+  labTestingSummary   String?
+
+  // Merchandising flags — drive homepage/shop "featured" rails and badges
+  // instead of a hardcoded product list.
+  featured   Boolean @default(false)
+  newArrival Boolean @default(false)
+  bestSeller Boolean @default(false)
+
+  shippingClass ShippingClass @default(STANDARD)
+
+  variants  ProductVariant[]
+  images    ProductImage[]
+  reviews   Review[]
+  documents ProductDocument[]
+
+  @@index([categoryId])
+  @@map("products")
+}
+
+enum DocumentKind {
+  COA
+  LAB_REPORT
+  VIDEO
+  OTHER
+}
+
+// Generic home for Certificates of Analysis, lab reports, videos, and any
+// future downloadable asset — one extensible list instead of a one-off
+// `coaUrl`-style column per document type.
+model ProductDocument {
+  id        String       @id @default(cuid())
+  productId String
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind      DocumentKind
+  label     String
+  url       String
+  createdAt DateTime     @default(now())
+
+  @@index([productId])
+  @@map("product_documents")
+}
+
+model ProductVariant {
+  id             String   @id @default(cuid())
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  label          String // e.g. "10MG", "Large / Black"
+  sku            String   @unique
+  // Nullable — null means pricing isn't finalized yet. UI shows
+  // "Contact for Pricing" rather than an invented figure (see
+  // PriceDisplay.tsx and getStockStatus in server/services/catalog.ts).
+  price          Decimal? @db.Decimal(10, 2)
+  compareAtPrice Decimal? @db.Decimal(10, 2)
+  stock          Int      @default(0)
+  // Category-specific attributes, keyed per Category.attributeSchema —
+  // e.g. { "dosage": "10mg" } or { "size": "L", "color": "black" }.
+  attributes     Json     @default("{}")
+
+  // Inventory management fields — populated incrementally as real stock
+  // tracking comes online; `stock` above stays the simple current count,
+  // these support richer low-stock/backorder UI without a schema change.
+  availableQuantity Int       @default(0)
+  lowStockThreshold Int       @default(5)
+  backorderAllowed  Boolean   @default(false)
+  restockDate       DateTime?
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+enum ImageKind {
+  PRIMARY
+  GALLERY
+  LABEL_CLOSEUP
+  PACKAGING
+  LIFESTYLE
+  COA_PREVIEW
+}
+
+model ProductImage {
+  id        String    @id @default(cuid())
+  productId String
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String
+  position  Int       @default(0)
+  kind      ImageKind @default(GALLERY)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+// ---------------------------------------------------------------------------
+// Cart
+// ---------------------------------------------------------------------------
+
+model Cart {
+  id           String   @id @default(cuid())
+  userId       String?  @unique
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionToken String?  @unique // guest cart identifier
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  cartId    String
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  quantity  Int            @default(1)
+
+  @@unique([cartId, variantId])
+  @@map("cart_items")
+}
+
+// ---------------------------------------------------------------------------
+// Orders / Payments (see ARCHITECTURE.md#ecommerce-order-lifecycle,
+// API.md#payment-provider-interface)
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAYMENT_SUBMITTED
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model Order {
+  id                   String      @id @default(cuid())
+  orderNumber          String      @unique
+  userId               String?
+  user                 User?       @relation(fields: [userId], references: [id])
+  email                String
+  status               OrderStatus @default(PENDING_PAYMENT)
+  subtotal             Decimal     @db.Decimal(10, 2)
+  shippingCost         Decimal     @default(0) @db.Decimal(10, 2)
+  total                Decimal     @db.Decimal(10, 2)
+  currency             String      @default("USD")
+  shippingAddressJson  Json
+  researchAcknowledged Boolean     @default(false)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  items   OrderItem[]
+  payment Payment?
+
+  @@index([userId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String         @id @default(cuid())
+  orderId       String
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId     String
+  variant       ProductVariant @relation(fields: [variantId], references: [id])
+  nameSnapshot  String
+  priceSnapshot Decimal        @db.Decimal(10, 2)
+  quantity      Int
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+enum PaymentMethod {
+  WISE
+  BITCOIN
+  MANUAL
+  STRIPE
+  AUTHORIZE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  FAILED
+}
+
+// One row per Order, written/read only through the PaymentProvider interface
+// (lib/payments/provider.ts) — see API.md#payment-provider-interface.
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String        @unique
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  amount        Decimal       @db.Decimal(10, 2)
+  currency      String        @default("USD")
+  referenceCode String? // Wise bank-transfer reference
+  btcAddress    String?
+  btcInvoiceId  String?
+  txHash        String?
+  confirmedAt   DateTime?
+  createdAt     DateTime      @default(now())
+
+  @@index([referenceCode])
+  @@index([btcInvoiceId])
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// Content / CMS layer (see ARCHITECTURE.md#content-layer)
+// ---------------------------------------------------------------------------
+
+model Page {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  title          String
+  sections       Json     @default("[]") // ordered block list: hero/richtext/faq-list/cta/...
+  seoTitle       String?
+  seoDescription String?
+  updatedAt      DateTime @updatedAt
+
+  @@map("pages")
+}
+
+enum ArticleCategory {
+  RESEARCH
+  BLOG
+}
+
+model Article {
+  id          String          @id @default(cuid())
+  title       String
+  slug        String          @unique
+  category    ArticleCategory
+  body        Json // block content
+  publishedAt DateTime?
+  author      String?
+  createdAt   DateTime        @default(now())
+
+  @@map("articles")
+}
+
+model FAQItem {
+  id       String  @id @default(cuid())
+  question String
+  answer   String
+  category String?
+  position Int     @default(0)
+
+  @@map("faq_items")
+}
+
+// ---------------------------------------------------------------------------
+// v2 stubs — scaffolded now so the admin modules in ARCHITECTURE.md#admin-module-map
+// have a schema home; full CRUD/business logic is built out with each module.
+// ---------------------------------------------------------------------------
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+model Coupon {
+  id         String       @id @default(cuid())
+  code       String       @unique
+  type       DiscountType
+  value      Decimal      @db.Decimal(10, 2)
+  expiresAt  DateTime?
+  usageLimit Int?
+  timesUsed  Int          @default(0)
+
+  @@map("coupons")
+}
+
+model Discount {
+  id     String       @id @default(cuid())
+  name   String
+  type   DiscountType
+  value  Decimal      @db.Decimal(10, 2)
+  rule   Json // e.g. { "minSubtotal": 100 } — evaluated by the discount service once built
+  active Boolean      @default(false)
+
+  @@map("discounts")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int
+  body      String
+  approved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@map("reviews")
+}
+
+model ShippingZone {
+  id        String   @id @default(cuid())
+  name      String
+  countries String[] // ISO country codes
+  rate      Decimal  @db.Decimal(10, 2)
+
+  @@map("shipping_zones")
+}
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model ReturnRequest {
+  id        String       @id @default(cuid())
+  orderId   String
+  reason    String
+  status    ReturnStatus @default(REQUESTED)
+  createdAt DateTime     @default(now())
+
+  @@map("return_requests")
+}

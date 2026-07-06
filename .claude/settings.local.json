@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/offic/.claude/**)",
+      "Bash(gh api *)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl -sL https://raw.githubusercontent.com/anthropics/skills/main/skills/frontend-design/SKILL.md -o /tmp/SKILL.md)",
+      "Read(//tmp/**)",
+      "Bash(mkdir -p ~/.claude/skills/frontend-design)",
+      "Bash(curl -sL https://raw.githubusercontent.com/anthropics/skills/main/skills/frontend-design/SKILL.md -o ~/.claude/skills/frontend-design/SKILL.md)",
+      "Bash(curl -sL https://raw.githubusercontent.com/anthropics/skills/main/skills/frontend-design/LICENSE.txt -o ~/.claude/skills/frontend-design/LICENSE.txt)",
+      "Read(//c/Users/offic/.claude/skills/**)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git --version)",
+      "Bash(cd /tmp/ui-ux-pro-max-skill && find .claude/skills -type f | sort)",
+      "Bash(npm --version)",
+      "Bash(py --version)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(python --version)",
+      "PowerShell(winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements)",
+      "PowerShell(winget install --id Python.Python.3.12 -e --accept-package-agreements --accept-source-agreements)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); node --version; npm --version; python --version)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); npm install -g ui-ux-pro-max-cli)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); uipro init --ai claude --global)",
+      "Bash(ls ~/.claude/skills/)",
+      "Bash(taskkill //PID 18928 //F)",
+      "Bash(docker --version)",
+      "Bash(where postgres *)",
+      "Bash(where pg_ctl)"
+    ]
+  }
+}
