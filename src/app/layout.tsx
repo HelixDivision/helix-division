@@ -35,12 +35,23 @@ export const metadata: Metadata = {
     template: `%s — ${siteConfig.name}`,
   },
   description: siteConfig.description,
+  keywords: [
+    "research peptides",
+    "research materials",
+    "peptides for research",
+    "SARMs",
+    "laboratory supplies",
+    "certificate of analysis",
+    "research use only",
+  ],
+  alternates: { canonical: "/" },
+  // OG/Twitter images are supplied by the file-convention opengraph-image.tsx
+  // (generated at request time) — no missing static asset to maintain.
   openGraph: {
     title: siteConfig.name,
     description: siteConfig.description,
     url: siteConfig.url,
     siteName: siteConfig.name,
-    images: [siteConfig.ogImage],
     type: "website",
   },
   twitter: {
@@ -48,6 +59,7 @@ export const metadata: Metadata = {
     title: siteConfig.name,
     description: siteConfig.description,
   },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({

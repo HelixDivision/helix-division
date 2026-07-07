@@ -470,6 +470,39 @@ model ArticleTopic {
   @@map("article_topics")
 }
 
+// Contact form submissions (Prototype Launch sprint) — saved to the DB so they
+// can be reviewed in the Admin Dashboard, in addition to being emailed to the
+// configurable recipient (see SiteSetting).
+enum ContactMessageStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
+model ContactMessage {
+  id        String               @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  status    ContactMessageStatus @default(NEW)
+  createdAt DateTime             @default(now())
+
+  @@index([status])
+  @@map("contact_messages")
+}
+
+// Generic admin-editable key/value settings (Prototype Launch sprint). First
+// use: the contact-form recipient email. Kept a single key/value table so more
+// runtime-configurable settings can be added without a migration each time.
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
 model Article {
   id                String        @id @default(cuid())
   title             String

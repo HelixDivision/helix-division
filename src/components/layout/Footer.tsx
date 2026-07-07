@@ -5,11 +5,13 @@ import { NewsletterSignup } from "@/components/marketing/NewsletterSignup";
 import { footerNav, legalNav } from "@/config/nav";
 import { siteConfig } from "@/config/site";
 
+// Only render social links that are actually configured — an empty URL would
+// be a dead "#" link. When none are set, the "Follow Us" column is hidden.
 const socialLinks = [
   { label: "Instagram", short: "IG", href: siteConfig.social.instagram },
   { label: "X", short: "X", href: siteConfig.social.x },
   { label: "TikTok", short: "TT", href: siteConfig.social.tiktok },
-];
+].filter((social) => social.href.length > 0);
 
 /** Site-wide footer — composed into every page, not homepage-specific (see ARCHITECTURE.md#routing-map). Matches the approved mockup's Peptides/Company/Support/Follow Us layout. */
 export function Footer() {
@@ -42,24 +44,28 @@ export function Footer() {
             </div>
           ))}
 
-          <div>
-            <h3 className="font-heading text-foreground-primary text-xs tracking-wide uppercase">
-              Follow Us
-            </h3>
-            <ul className="mt-4 flex items-center gap-2.5">
-              {socialLinks.map((social) => (
-                <li key={social.label}>
-                  <Link
-                    href={social.href || "#"}
-                    aria-label={social.label}
-                    className="border-border text-foreground-muted hover:border-accent-crimson hover:text-accent-crimson flex h-8 w-8 items-center justify-center rounded-full border text-[0.6rem] font-medium tracking-wide transition-colors"
-                  >
-                    {social.short}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {socialLinks.length > 0 && (
+            <div>
+              <h3 className="font-heading text-foreground-primary text-xs tracking-wide uppercase">
+                Follow Us
+              </h3>
+              <ul className="mt-4 flex items-center gap-2.5">
+                {socialLinks.map((social) => (
+                  <li key={social.label}>
+                    <Link
+                      href={social.href}
+                      aria-label={social.label}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="border-border text-foreground-muted hover:border-accent-crimson hover:text-accent-crimson flex h-8 w-8 items-center justify-center rounded-full border text-[0.6rem] font-medium tracking-wide transition-colors"
+                    >
+                      {social.short}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className="border-border mt-12 border-t pt-8">

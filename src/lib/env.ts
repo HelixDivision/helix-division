@@ -16,6 +16,17 @@ const envSchema = z.object({
   // only renders when set. First-party analytics work regardless.
   NEXT_PUBLIC_GA_ID: z.string().optional(),
 
+  // Google reCAPTCHA v2 checkbox (Prototype Launch) — optional. When both are
+  // set the contact form renders the widget and the server verifies the token;
+  // when unset the form falls back to honeypot-only spam protection so it
+  // still works in dev without keys.
+  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: z.string().optional(),
+  RECAPTCHA_SECRET_KEY: z.string().optional(),
+
+  // Contact-form recipient fallback (Prototype Launch). The admin-editable
+  // SiteSetting takes precedence; this is the default when unset.
+  CONTACT_RECIPIENT_EMAIL: z.string().optional(),
+
   // Decided production providers: wise, now-payments, coinbase-commerce —
   // see ARCHITECTURE.md#payment-architecture. bitcoin/stripe/authorize
   // remain registered as optional/example adapters, not defaults.

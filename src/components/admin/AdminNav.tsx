@@ -7,8 +7,10 @@ import {
   Image as ImageIcon,
   LayoutDashboard,
   Mail,
+  MessageSquare,
   Newspaper,
   Package,
+  Settings,
   ShoppingCart,
   Users,
 } from "lucide-react";
@@ -33,6 +35,8 @@ const items = [
   { href: "/admin/media", label: "Media", icon: ImageIcon },
   { href: "/admin/research", label: "Research", icon: Newspaper },
   { href: "/admin/newsletters", label: "Newsletters", icon: Mail },
+  { href: "/admin/messages", label: "Messages", icon: MessageSquare },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 export function AdminNav() {
