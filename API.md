@@ -36,6 +36,7 @@ type PaymentStatus = "pending" | "submitted" | "confirmed" | "failed";
 interface PaymentOrderInput {
   id: string;
   orderNumber: string;
+  email: string;
   total: number;
   currency: string;
 }
@@ -169,7 +170,7 @@ interface AnalyticsService {
 ```ts
 createOrder(input: CreateOrderInput): Promise<OrderRecord>; // input.userId set from session when authenticated
 createPaymentForOrder(orderId: string, providerId: string): Promise<OrderRecord>;
-confirmPaymentSubmitted(orderId: string, providerId: string): Promise<OrderRecord>;
+confirmPaymentSubmitted(orderId: string): Promise<OrderRecord>; // provider read from the attached payment
 getOrder(orderId: string): Promise<OrderRecord | null>;                      // internal/checkout — no ownership filter
 getOrdersForUser(userId: string): Promise<OrderRecord[]>;                    // account order history (Phase 8)
 getOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null>; // account order detail (Phase 8)

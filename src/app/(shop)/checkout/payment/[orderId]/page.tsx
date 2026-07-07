@@ -7,6 +7,7 @@ import { ConfirmPaymentButton } from "@/components/checkout/ConfirmPaymentButton
 import { Button } from "@/components/ui/button";
 import { getPaymentProviderLabel } from "@/lib/payments/provider-labels";
 import type { WiseInstructions } from "@/lib/payments/types";
+import { formatCurrency } from "@/lib/utils";
 import { getOrder } from "@/server/services/orders";
 
 export const metadata: Metadata = {
@@ -15,10 +16,6 @@ export const metadata: Metadata = {
 
 interface PaymentPageProps {
   params: Promise<{ orderId: string }>;
-}
-
-function formatPrice(value: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
 }
 
 function WiseInstructionsPanel({ instructions }: { instructions: WiseInstructions }) {
@@ -62,7 +59,7 @@ export default async function PaymentPage({ params }: PaymentPageProps) {
         Payment
       </h1>
       <p className="text-foreground-muted mt-2 text-sm">
-        Order {order.orderNumber} — {formatPrice(order.total, order.currency)}
+        Order {order.orderNumber} — {formatCurrency(order.total, order.currency)}
       </p>
 
       {!order.payment ? (

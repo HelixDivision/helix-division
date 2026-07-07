@@ -7,11 +7,8 @@ import { CartLineItem } from "@/components/cart/CartLineItem";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCart } from "@/hooks/useCart";
+import { formatCurrency } from "@/lib/utils";
 import { useUiStore } from "@/store/ui-store";
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
-}
 
 /** Rendered once in src/app/layout.tsx, controlled by the existing ui-store cart-drawer state. */
 export function CartDrawer() {
@@ -55,7 +52,7 @@ export function CartDrawer() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-foreground-muted">Subtotal</span>
                 <span className="text-foreground-primary font-heading">
-                  {formatPrice(subtotal)}
+                  {formatCurrency(subtotal)}
                 </span>
               </div>
               <Button

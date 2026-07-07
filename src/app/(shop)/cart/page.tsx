@@ -8,10 +8,7 @@ import { FadeIn } from "@/components/motion/FadeIn";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/hooks/useCart";
 import { defaultShippingConfig } from "@/lib/shipping-config";
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
-}
+import { formatCurrency } from "@/lib/utils";
 
 export default function CartPage() {
   const { lines, subtotal } = useCart();
@@ -56,17 +53,17 @@ export default function CartPage() {
           <div className="mt-4 flex flex-col gap-2 text-sm">
             <div className="flex justify-between">
               <span className="text-foreground-muted">Subtotal</span>
-              <span className="text-foreground-primary">{formatPrice(subtotal)}</span>
+              <span className="text-foreground-primary">{formatCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-foreground-muted">Shipping</span>
               <span className="text-foreground-primary">
-                {shippingCost === 0 ? "Free" : formatPrice(shippingCost)}
+                {shippingCost === 0 ? "Free" : formatCurrency(shippingCost)}
               </span>
             </div>
             <div className="border-border mt-2 flex justify-between border-t pt-2">
               <span className="text-foreground-primary font-heading">Total</span>
-              <span className="text-foreground-primary font-heading">{formatPrice(total)}</span>
+              <span className="text-foreground-primary font-heading">{formatCurrency(total)}</span>
             </div>
           </div>
           <Button

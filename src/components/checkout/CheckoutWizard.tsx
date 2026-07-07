@@ -16,6 +16,7 @@ import { useCart } from "@/hooks/useCart";
 import { useCheckout } from "@/hooks/useCheckout";
 import { analyticsService } from "@/lib/analytics";
 import { defaultShippingConfig } from "@/lib/shipping-config";
+import { formatCurrency } from "@/lib/utils";
 import {
   checkoutInformationSchema,
   type CheckoutInformationInput,
@@ -42,10 +43,6 @@ const informationFields = [
   "country",
   "researchAcknowledged",
 ] as const satisfies readonly (keyof FormValues)[];
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
-}
 
 /**
  * 2-step wizard (Information → Review) extending the existing useCheckout
@@ -322,7 +319,7 @@ export function CheckoutWizard({ providers }: CheckoutWizardProps) {
                   {line.name} × {line.quantity}
                 </span>
                 <span className="text-foreground-primary">
-                  {formatPrice(line.price * line.quantity)}
+                  {formatCurrency(line.price * line.quantity)}
                 </span>
               </div>
             ))}
@@ -330,17 +327,17 @@ export function CheckoutWizard({ providers }: CheckoutWizardProps) {
           <div className="border-border mt-4 flex flex-col gap-2 border-t pt-4 text-sm">
             <div className="flex justify-between">
               <span className="text-foreground-muted">Subtotal</span>
-              <span className="text-foreground-primary">{formatPrice(subtotal)}</span>
+              <span className="text-foreground-primary">{formatCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-foreground-muted">Shipping</span>
               <span className="text-foreground-primary">
-                {shippingCost === 0 ? "Free" : formatPrice(shippingCost)}
+                {shippingCost === 0 ? "Free" : formatCurrency(shippingCost)}
               </span>
             </div>
             <div className="border-border mt-2 flex justify-between border-t pt-2">
               <span className="text-foreground-primary font-heading">Total</span>
-              <span className="text-foreground-primary font-heading">{formatPrice(total)}</span>
+              <span className="text-foreground-primary font-heading">{formatCurrency(total)}</span>
             </div>
           </div>
         </aside>

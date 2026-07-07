@@ -3,14 +3,24 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { OrderStatusBadge, ORDER_STATUS_LABELS } from "@/components/checkout/OrderStatusBadge";
+import { OrderStatusBadge } from "@/components/checkout/OrderStatusBadge";
 import { OrderSummaryCard } from "@/components/checkout/OrderSummaryCard";
 import { ShippingAddressCard } from "@/components/checkout/ShippingAddressCard";
 import { auth } from "@/lib/auth";
+import { getPaymentProviderLabel } from "@/lib/payments/provider-labels";
+import type { PaymentStatus } from "@/lib/payments/types";
 import { getOrderForUser } from "@/server/services/orders";
 
 export const metadata: Metadata = {
   title: "Order Details | Helix Division",
+};
+
+// Payment-status wording (distinct from OrderStatus — see lib/payments/types.ts).
+const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  pending: "Pending",
+  submitted: "Submitted — awaiting confirmation",
+  confirmed: "Confirmed",
+  failed: "Failed",
 };
 
 interface OrderDetailPageProps {
@@ -62,7 +72,9 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             Payment
           </h2>
           <p className="text-foreground-muted mt-3">
-            Status: {ORDER_STATUS_LABELS[order.status] ?? order.status}
+            {getPaymentProviderLabel(order.payment.method)}
+            {" · "}
+            {PAYMENT_STATUS_LABELS[order.payment.status] ?? order.payment.status}
             {order.payment.providerRef ? ` · Reference ${order.payment.providerRef}` : ""}
           </p>
         </div>

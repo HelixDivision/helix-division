@@ -69,7 +69,7 @@ Shares the same `VerificationToken` table and `issueToken`/`consumeToken` helper
 
 ## Rate Limiting Architecture
 
-**Architecture only — no real limiter implemented.** `src/server/services/rate-limit.ts` defines a `RateLimiter` interface + `NoopRateLimiter` (always allows), mirroring the `NotificationService`/`PaymentProvider` "interface today, real implementation later" pattern used twice elsewhere in this codebase. `rateLimiter.check(key)` is already called at the top of `registerAction`, `requestPasswordResetAction`, `resetPasswordAction`, and inside `verifyCredentials` — every entry point a real limiter would need to guard is already isolated behind this one interface. Swapping in an Upstash-Redis-backed (or similar) implementation later touches only `rate-limit.ts`; none of those call sites change.
+**Architecture only — no real limiter implemented.** `src/server/services/rate-limit.ts` defines a `RateLimiter` interface + `NoopRateLimiter` (always allows), mirroring the `NotificationService`/`PaymentProvider` "interface today, real implementation later" pattern used twice elsewhere in this codebase. `rateLimiter.check(key)` is already called at the top of `registerAction`, `requestPasswordResetAction`, `resetPasswordAction`, and inside `verifyCredentials` and `changePassword` (the latter added with Phase 8 — it verifies a password, so it's an online-guessing surface like login) — every entry point a real limiter would need to guard is already isolated behind this one interface. Swapping in an Upstash-Redis-backed (or similar) implementation later touches only `rate-limit.ts`; none of those call sites change.
 
 ## Audit Events
 

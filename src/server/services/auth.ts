@@ -173,6 +173,14 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<void> {
+  // Same rule as every other auth entry point (see PROJECT_CONTEXT.md §5):
+  // this verifies a password, so it's an online-guessing surface — a real
+  // limiter must be able to guard it without a new call site being added.
+  const { allowed } = await rateLimiter.check(`change-password:${userId}`);
+  if (!allowed) {
+    throw new Error("Too many attempts. Please try again later.");
+  }
+
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user?.passwordHash) {
     throw new Error("This account has no password set.");

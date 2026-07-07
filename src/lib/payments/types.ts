@@ -10,10 +10,11 @@ export type PaymentStatus = "pending" | "submitted" | "confirmed" | "failed";
 /**
  * Deliberately a plain domain shape, not the Prisma-generated `Order` type —
  * adapters only ever need these scalar fields, and typing against the ORM's
- * output would couple the payment layer to Prisma even when order data comes
- * from a different repository (see src/server/repositories/order-repository.ts,
- * which is in-memory today). Keeps "swap the repository, touch nothing else"
- * true for the payment layer too.
+ * output would couple the payment layer to Prisma. The order repository
+ * (src/server/repositories/order-repository.ts) has been Prisma-backed since
+ * the Real Prisma Integration phase, but the decoupling stands regardless of
+ * which implementation is live — "swap the repository, touch nothing else"
+ * stays true for the payment layer too.
  */
 export interface PaymentOrderInput {
   id: string;

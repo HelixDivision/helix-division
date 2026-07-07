@@ -6,11 +6,8 @@ import Image from "next/image";
 import { QuantitySelector } from "@/components/shop/QuantitySelector";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/hooks/useCart";
+import { formatCurrency } from "@/lib/utils";
 import type { CartLine } from "@/store/cart-store";
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
-}
 
 interface CartLineItemProps {
   line: CartLine;
@@ -60,7 +57,7 @@ export function CartLineItem({ line, compact = false }: CartLineItemProps) {
             onChange={(quantity) => updateQuantity(line.variantId, quantity)}
           />
           <span className="text-foreground-primary font-heading text-sm">
-            {formatPrice(line.price * line.quantity)}
+            {formatCurrency(line.price * line.quantity)}
           </span>
         </div>
       </div>

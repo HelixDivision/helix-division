@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 interface PriceDisplayProps {
   /** null = pricing not finalized — renders "Contact for Pricing" instead of a figure. */
@@ -6,10 +6,6 @@ interface PriceDisplayProps {
   compareAtPrice?: number | null;
   currency?: string;
   className?: string;
-}
-
-function formatPrice(value: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
 }
 
 /**
@@ -45,11 +41,11 @@ export function PriceDisplay({
   return (
     <span className={cn("flex items-baseline gap-2", className)}>
       <span className="text-foreground-primary font-heading text-base">
-        {formatPrice(price, currency)}
+        {formatCurrency(price, currency)}
       </span>
       {typeof compareAtPrice === "number" && compareAtPrice > price && (
         <span className="text-foreground-muted text-sm line-through">
-          {formatPrice(compareAtPrice, currency)}
+          {formatCurrency(compareAtPrice, currency)}
         </span>
       )}
     </span>

@@ -5,6 +5,7 @@ import type { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { addressSchema, changePasswordSchema, profileSchema } from "@/lib/validations/account";
+import { errorMessage, fieldErrorsFrom, type ActionResult } from "@/server/actions/shared";
 import { changePassword } from "@/server/services/auth";
 import { createAddress, deleteAddress, updateAddress, updateProfile } from "@/server/services/user";
 
@@ -17,25 +18,6 @@ import { createAddress, deleteAddress, updateAddress, updateProfile } from "@/se
  * server/services/user.ts (profile/addresses) or server/services/auth.ts
  * (password, which stays in the auth service by design).
  */
-
-export interface ActionResult {
-  success: boolean;
-  error?: string;
-  fieldErrors?: Partial<Record<string, string>>;
-}
-
-function fieldErrorsFrom(error: z.ZodError): Partial<Record<string, string>> {
-  const fieldErrors: Partial<Record<string, string>> = {};
-  for (const issue of error.issues) {
-    const key = issue.path[0];
-    if (typeof key === "string" && !fieldErrors[key]) fieldErrors[key] = issue.message;
-  }
-  return fieldErrors;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
-}
 
 async function requireUserId(): Promise<string | null> {
   const session = await auth();
@@ -51,7 +33,7 @@ export async function updateProfileAction(input: unknown): Promise<ActionResult>
     return {
       success: false,
       error: "Please correct the highlighted fields.",
-      fieldErrors: fieldErrorsFrom(parsed.error),
+      fieldErrors: fieldErrorsFrom(parsed.error.issues),
     };
   }
 
@@ -78,7 +60,7 @@ export async function createAddressAction(input: unknown): Promise<ActionResult>
     return {
       success: false,
       error: "Please correct the highlighted fields.",
-      fieldErrors: fieldErrorsFrom(parsed.error),
+      fieldErrors: fieldErrorsFrom(parsed.error.issues),
     };
   }
 
@@ -104,7 +86,7 @@ export async function updateAddressAction(
     return {
       success: false,
       error: "Please correct the highlighted fields.",
-      fieldErrors: fieldErrorsFrom(parsed.error),
+      fieldErrors: fieldErrorsFrom(parsed.error.issues),
     };
   }
 
@@ -141,7 +123,7 @@ export async function changePasswordAction(input: unknown): Promise<ActionResult
     return {
       success: false,
       error: "Please correct the highlighted fields.",
-      fieldErrors: fieldErrorsFrom(parsed.error),
+      fieldErrors: fieldErrorsFrom(parsed.error.issues),
     };
   }
 

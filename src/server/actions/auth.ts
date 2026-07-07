@@ -1,6 +1,7 @@
 "use server";
 
 import { forgotPasswordSchema, registerSchema, resetPasswordSchema } from "@/lib/validations/auth";
+import { errorMessage, fieldErrorsFrom, type ActionResult } from "@/server/actions/shared";
 import {
   registerUser,
   requestPasswordReset,
@@ -9,25 +10,6 @@ import {
 } from "@/server/services/auth";
 import { rateLimiter } from "@/server/services/rate-limit";
 
-export interface AuthActionResult {
-  success: boolean;
-  error?: string;
-  fieldErrors?: Partial<Record<string, string>>;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
-}
-
-function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }[]) {
-  const fieldErrors: Partial<Record<string, string>> = {};
-  for (const issue of issues) {
-    const key = issue.path[0];
-    if (typeof key === "string" && !fieldErrors[key]) fieldErrors[key] = issue.message;
-  }
-  return fieldErrors;
-}
-
 /**
  * Validates with lib/validations/auth.ts's zod schemas, then delegates
  * entirely to server/services/auth.ts — nothing here touches Prisma
@@ -35,7 +17,7 @@ function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }[]) {
  * verifyCredentials) since these are the entry points a real limiter would
  * need to guard — see server/services/rate-limit.ts.
  */
-export async function registerAction(input: unknown): Promise<AuthActionResult> {
+export async function registerAction(input: unknown): Promise<ActionResult> {
   const parsed = registerSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -64,7 +46,7 @@ export async function registerAction(input: unknown): Promise<AuthActionResult> 
   return { success: true };
 }
 
-export async function requestPasswordResetAction(input: unknown): Promise<AuthActionResult> {
+export async function requestPasswordResetAction(input: unknown): Promise<ActionResult> {
   const parsed = forgotPasswordSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -86,7 +68,7 @@ export async function requestPasswordResetAction(input: unknown): Promise<AuthAc
   return { success: true };
 }
 
-export async function resetPasswordAction(input: unknown): Promise<AuthActionResult> {
+export async function resetPasswordAction(input: unknown): Promise<ActionResult> {
   const parsed = resetPasswordSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -110,7 +92,7 @@ export async function resetPasswordAction(input: unknown): Promise<AuthActionRes
   return { success: true };
 }
 
-export async function verifyEmailAction(token: string): Promise<AuthActionResult> {
+export async function verifyEmailAction(token: string): Promise<ActionResult> {
   try {
     await verifyEmail(token);
   } catch (error) {

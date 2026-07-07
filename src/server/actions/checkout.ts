@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getEnabledProviders } from "@/lib/payments/provider";
 import { checkoutInformationSchema } from "@/lib/validations/checkout";
+import { errorMessage, fieldErrorsFrom, type ActionResult } from "@/server/actions/shared";
 import {
   confirmPaymentSubmitted,
   createOrder,
@@ -22,16 +23,9 @@ function paymentMethodSchema() {
   return z.enum(enabledIds as [string, ...string[]], { error: "Choose a payment method" });
 }
 
-export interface CreateOrderActionResult {
-  success: boolean;
+export interface CreateOrderActionResult extends ActionResult {
   orderId?: string;
-  error?: string;
   paymentError?: string;
-  fieldErrors?: Partial<Record<string, string>>;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
 }
 
 /**
@@ -46,12 +40,11 @@ export async function createOrderAction(
 ): Promise<CreateOrderActionResult> {
   const parsed = createOrderActionSchema.safeParse(input);
   if (!parsed.success) {
-    const fieldErrors: Partial<Record<string, string>> = {};
-    for (const issue of parsed.error.issues) {
-      const key = issue.path[0];
-      if (typeof key === "string" && !fieldErrors[key]) fieldErrors[key] = issue.message;
-    }
-    return { success: false, error: "Please correct the highlighted fields.", fieldErrors };
+    return {
+      success: false,
+      error: "Please correct the highlighted fields.",
+      fieldErrors: fieldErrorsFrom(parsed.error.issues),
+    };
   }
 
   const providerCheck = paymentMethodSchema().safeParse(parsed.data.providerId);
@@ -107,12 +100,7 @@ export async function createOrderAction(
   return { success: true, orderId };
 }
 
-export interface ConfirmPaymentSentResult {
-  success: boolean;
-  error?: string;
-}
-
-export async function confirmPaymentSentAction(orderId: string): Promise<ConfirmPaymentSentResult> {
+export async function confirmPaymentSentAction(orderId: string): Promise<ActionResult> {
   try {
     await confirmPaymentSubmitted(orderId);
     return { success: true };
