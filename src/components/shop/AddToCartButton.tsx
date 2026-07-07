@@ -8,6 +8,7 @@ import { QuantitySelector } from "@/components/shop/QuantitySelector";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/hooks/useCart";
 import { analyticsService } from "@/lib/analytics";
+import { beaconAnalytics } from "@/lib/analytics-beacon";
 import { getStockStatus } from "@/lib/stock-status";
 import { useUiStore } from "@/store/ui-store";
 import type { CatalogProduct } from "@/types/catalog";
@@ -44,6 +45,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
       image: product.images[0]?.url ?? null,
     });
     analyticsService.track("add_to_cart", { productId: product.id, quantity });
+    beaconAnalytics("ADD_TO_CART", { productId: product.id });
     toast.success(`${quantity} × ${product.name} added to cart`);
     openCartDrawer();
   }

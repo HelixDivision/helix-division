@@ -76,7 +76,6 @@ export const adminProductSchema = z.object({
   casNumber: optionalText,
   sequence: optionalText,
   storageInstructions: optionalText,
-  labTestingSummary: optionalText,
   featured: z.boolean(),
   newArrival: z.boolean(),
   bestSeller: z.boolean(),

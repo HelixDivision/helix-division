@@ -447,22 +447,167 @@ model Page {
   @@map("pages")
 }
 
-enum ArticleCategory {
-  RESEARCH
-  BLOG
+// Shared publish lifecycle for the Research Center and Newsletter CMS
+// (Phase 9.5). SCHEDULED rows become publicly visible once scheduledFor passes
+// — the read queries filter on that, so no cron job is required for the MVP.
+enum ContentStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+}
+
+// CMS-managed article categories (Phase 9.5) — data, not an enum, so the admin
+// can add topics without a migration (same principle as product Category).
+model ArticleTopic {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+
+  articles Article[]
+
+  @@map("article_topics")
 }
 
 model Article {
-  id          String          @id @default(cuid())
-  title       String
-  slug        String          @unique
-  category    ArticleCategory
-  body        Json // block content
-  publishedAt DateTime?
-  author      String?
-  createdAt   DateTime        @default(now())
+  id                String        @id @default(cuid())
+  title             String
+  slug              String        @unique
+  excerpt           String?
+  // Ordered content blocks: [{ type: "paragraph"|"heading"|"image"|"pdf", ... }]
+  body              Json          @default("[]")
+  featuredImageUrl  String?
+  status            ContentStatus @default(DRAFT)
+  featured          Boolean       @default(false)
+  homepagePlacement Boolean       @default(false)
+  publishedAt       DateTime?
+  scheduledFor      DateTime?
+  author            String?
+  tags              String[]      @default([])
+  // Downloadable PDFs surfaced on the article: [{ label, url }]
+  attachments       Json          @default("[]")
+  seoTitle          String?
+  seoDescription    String?
+  topicId           String?
+  topic             ArticleTopic? @relation(fields: [topicId], references: [id])
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
+  @@index([status])
+  @@index([topicId])
   @@map("articles")
+}
+
+// Newsletter CMS (Phase 9.5). Shares ContentStatus + the block-body/attachments
+// shape with Article, but kept a separate model — different audience surface,
+// different lifecycle (no scheduling requirement, has a subscriber list).
+model Newsletter {
+  id               String        @id @default(cuid())
+  title            String
+  slug             String        @unique
+  excerpt          String?
+  body             Json          @default("[]")
+  featuredImageUrl String?
+  status           ContentStatus @default(DRAFT)
+  featured         Boolean       @default(false)
+  category         String?
+  publishedAt      DateTime?
+  attachments      Json          @default("[]")
+  seoTitle         String?
+  seoDescription   String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([status])
+  @@map("newsletters")
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  source    String? // where they subscribed from, e.g. "footer"
+  createdAt DateTime @default(now())
+
+  @@map("newsletter_subscribers")
+}
+
+// ---------------------------------------------------------------------------
+// Media Library (Phase 9.5) — tracked assets behind the StorageProvider
+// abstraction (src/lib/storage). `url` is provider-relative-public (e.g.
+// /uploads/... for the local adapter). Reused everywhere: product images/
+// galleries, category images/banners, homepage/hero graphics, article/
+// newsletter images, and COA PDFs.
+// ---------------------------------------------------------------------------
+
+enum MediaKind {
+  IMAGE
+  PDF
+}
+
+model MediaAsset {
+  id           String    @id @default(cuid())
+  filename     String // stored filename on disk (unique, slugified + suffixed)
+  originalName String
+  url          String
+  mimeType     String
+  kind         MediaKind
+  sizeBytes    Int
+  folder       String    @default("general")
+  alt          String?
+  width        Int?
+  height       Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([kind])
+  @@index([folder])
+  @@map("media_assets")
+}
+
+// ---------------------------------------------------------------------------
+// Analytics (Phase 9.5) — first-party event capture powering the admin
+// Analytics dashboard. visitorId (persistent cookie) distinguishes unique vs
+// returning; sessionId (session cookie) groups a visit. Store metrics
+// (revenue/AOV/best-sellers/customer growth) come from Order/User; these
+// events add traffic/funnel/device/geo/search. GA4 is the documented
+// production complement (NEXT_PUBLIC_GA_ID), not a replacement for these.
+// ---------------------------------------------------------------------------
+
+enum AnalyticsEventType {
+  PAGE_VIEW
+  PRODUCT_VIEW
+  ADD_TO_CART
+  BEGIN_CHECKOUT
+  PURCHASE
+  SEARCH
+}
+
+enum DeviceType {
+  MOBILE
+  TABLET
+  DESKTOP
+}
+
+model AnalyticsEvent {
+  id         String             @id @default(cuid())
+  type       AnalyticsEventType
+  visitorId  String
+  sessionId  String
+  path       String?
+  referrer   String?
+  device     DeviceType?
+  country    String?
+  searchTerm String?
+  productId  String?
+  orderId    String?
+  value      Decimal?           @db.Decimal(10, 2)
+  createdAt  DateTime           @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+  @@index([visitorId])
+  @@map("analytics_events")
 }
 
 model FAQItem {

@@ -4,6 +4,7 @@ import { FAQPreview } from "@/components/home/FAQPreview";
 import { FeaturedCategories } from "@/components/home/FeaturedCategories";
 import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { Hero } from "@/components/home/Hero";
+import { HomepageResearch } from "@/components/home/HomepageResearch";
 import { ManufacturingStandards } from "@/components/home/ManufacturingStandards";
 import { OperationalTrustStrip } from "@/components/home/OperationalTrustStrip";
 import { ResearchQuality } from "@/components/home/ResearchQuality";
@@ -33,6 +34,8 @@ export default function Home() {
       </section>
 
       <OperationalTrustStrip />
+      {/* Renders only when an admin has flagged articles for homepage placement — otherwise null (homepage unchanged). */}
+      <HomepageResearch />
       <FAQPreview />
       <CTA />
     </>

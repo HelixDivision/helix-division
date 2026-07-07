@@ -12,6 +12,10 @@ const envSchema = z.object({
   NEXTAUTH_URL: z.string().url(),
   NEXT_PUBLIC_SITE_URL: z.string().url(),
 
+  // Google Analytics 4 measurement id (Phase 9.5) — optional; the GA script
+  // only renders when set. First-party analytics work regardless.
+  NEXT_PUBLIC_GA_ID: z.string().optional(),
+
   // Decided production providers: wise, now-payments, coinbase-commerce —
   // see ARCHITECTURE.md#payment-architecture. bitcoin/stripe/authorize
   // remain registered as optional/example adapters, not defaults.

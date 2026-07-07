@@ -1,6 +1,17 @@
 "use client";
 
-import { Boxes, FolderTree, LayoutDashboard, Package, ShoppingCart, Users } from "lucide-react";
+import {
+  BarChart3,
+  Boxes,
+  FolderTree,
+  Image as ImageIcon,
+  LayoutDashboard,
+  Mail,
+  Newspaper,
+  Package,
+  ShoppingCart,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -13,11 +24,15 @@ import { cn } from "@/lib/utils";
  */
 const items = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/products", label: "Products", icon: Package },
   { href: "/admin/categories", label: "Categories", icon: FolderTree },
   { href: "/admin/inventory", label: "Inventory", icon: Boxes },
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
   { href: "/admin/customers", label: "Customers", icon: Users },
+  { href: "/admin/media", label: "Media", icon: ImageIcon },
+  { href: "/admin/research", label: "Research", icon: Newspaper },
+  { href: "/admin/newsletters", label: "Newsletters", icon: Mail },
 ];
 
 export function AdminNav() {

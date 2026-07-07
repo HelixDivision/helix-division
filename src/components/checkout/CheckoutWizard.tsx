@@ -15,6 +15,7 @@ import { TextField } from "@/components/ui/text-field";
 import { useCart } from "@/hooks/useCart";
 import { useCheckout } from "@/hooks/useCheckout";
 import { analyticsService } from "@/lib/analytics";
+import { beaconAnalytics } from "@/lib/analytics-beacon";
 import { defaultShippingConfig } from "@/lib/shipping-config";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -85,6 +86,7 @@ export function CheckoutWizard({ providers }: CheckoutWizardProps) {
 
   useEffect(() => {
     analyticsService.track("begin_checkout");
+    beaconAnalytics("BEGIN_CHECKOUT");
   }, []);
 
   useEffect(() => {

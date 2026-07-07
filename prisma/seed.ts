@@ -1,8 +1,16 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import bcrypt from "bcryptjs";
 
 import { PrismaClient } from "../src/generated/prisma/client";
 import { categories, products } from "../src/lib/data/catalog-data";
 import type { DocumentKind, ImageKind } from "../src/types/catalog";
+
+// Seeded Super Admin (Phase 9.5). A fresh database bootstraps with one ADMIN
+// account so the Admin Dashboard is reachable without manual promotion. The
+// dev password is intentionally simple and documented (README); change it in
+// any real environment. Upserted by email, so re-seeding never duplicates it.
+const SUPER_ADMIN_EMAIL = "support@helixdivision.com";
+const SUPER_ADMIN_PASSWORD = "Helix!Admin2026#";
 
 /**
  * One-time database bootstrap — populates Postgres from the static catalog
@@ -144,6 +152,21 @@ async function main() {
       });
     }
   }
+
+  const passwordHash = await bcrypt.hash(SUPER_ADMIN_PASSWORD, 10);
+  await db.user.upsert({
+    where: { email: SUPER_ADMIN_EMAIL },
+    create: {
+      email: SUPER_ADMIN_EMAIL,
+      name: "Helix Division Admin",
+      passwordHash,
+      role: "ADMIN",
+      emailVerified: new Date(),
+      researchAcknowledgedAt: new Date(),
+    },
+    update: { role: "ADMIN" },
+  });
+  console.log(`Seeded Super Admin: ${SUPER_ADMIN_EMAIL}`);
 
   console.log("Seed complete.");
 }

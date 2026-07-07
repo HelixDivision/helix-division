@@ -268,20 +268,30 @@ Actions validate input via `lib/validations` (zod) and delegate to `server/servi
 | Cart mutations | Cart has no Server Action layer — it's pure client state (`useCartStore`, Zustand + localStorage persist), since there's nothing server-side to validate or persist for an anonymous, pre-checkout cart. | **By design, not a gap** |
 | `admin-products.ts`, `admin-categories.ts`, `admin-inventory.ts`, `admin-orders.ts` | Admin CRUD/status-transition actions, each role-checked via `requireAdmin()` in addition to the proxy + layout guards | **Built** — Phase 9 (see [§ Admin Server Actions](#admin-server-actions-srcserveractionsadmin-ts)) |
 
-## Content Repository (`src/lib/content/`)
+## Media Library & Storage (Phase 9.5)
 
-Not built yet. Planned abstraction over `Page`, `Article`, `FAQItem` so a future CMS swap (e.g. Sanity/Payload) only touches this layer:
+`src/lib/storage/` — `StorageProvider` interface (`put`/`delete`) + `LocalStorageProvider` (writes `public/uploads/`, returns `/uploads/...` URLs). Swap the adapter in `provider.ts` for production (Vercel Blob/S3); no call site changes. `src/server/services/media.ts` owns the `MediaAsset` table + validation (image ≤8 MB, PDF ≤25 MB): `uploadMedia`, `replaceMedia`, `updateMediaMeta`, `deleteMedia`, `listMedia`, `listMediaFolders`. Actions (`server/actions/admin-media.ts`, role-checked, FormData): `uploadMediaAction`, `replaceMediaAction`, `updateMediaAction`, `deleteMediaAction`, `browseMediaAction` (picker read). Reuse `components/admin/MediaPickerDialog.tsx` to choose/upload anywhere.
+
+## Content Services (Phase 9.5)
+
+Research Center and Newsletters are **built** (block-body CMSes). `src/server/services/articles.ts`: topic CRUD, `listArticlesForAdmin`/`getArticleForAdmin`, `createArticle`/`updateArticle`/`deleteArticle` (status→publishedAt handling), and public reads `listPublishedArticles`/`getPublishedArticleBySlug`/`listHomepageArticles` (PUBLISHED, or SCHEDULED once due). `src/server/services/newsletters.ts`: mirror CRUD + `listPublishedNewsletters`/`getPublishedNewsletterBySlug` + `subscribeToNewsletter`/`getSubscriberCount`. Actions: `admin-articles.ts` (`saveArticleAction`, `deleteArticleAction`, `saveArticleTopicAction`, `deleteArticleTopicAction`), `admin-newsletters.ts` (`saveNewsletterAction`, `deleteNewsletterAction`), and public `newsletter.ts` (`subscribeNewsletterAction`, not admin-gated). Body shape = `ContentBlock[]` (`lib/content/blocks.ts`), rendered by `components/content/ContentBlockRenderer.tsx`.
+
+## Analytics (Phase 9.5)
+
+`src/server/services/analytics-capture.ts` — `recordAnalyticsEvent(...)` writes `AnalyticsEvent` (cookie-based visitor/session identity); `POST /api/analytics` is the client ingest; `PURCHASE` is recorded server-side in `createOrderAction`. `src/server/services/analytics-dashboard.ts` — `getAnalyticsDashboard(days)` returns the full metric set (audience/commerce/funnel/breakdowns) computed from `Order`/`User`/`NewsletterSubscriber` + `AnalyticsEvent`. GA4 via `components/analytics/GoogleAnalytics.tsx`, gated on `NEXT_PUBLIC_GA_ID`.
+
+## Generic Content Repository (`src/lib/content/`) — not built
+
+Planned abstraction for the *generic marketing pages* (Home/FAQ/Legal) still hardcoded in `components/home/*` — distinct from the built Research/Newsletter CMSes above:
 
 ```ts
 interface ContentRepository {
   getPage(slug: string): Promise<Page | null>;
-  listArticles(category: "research" | "blog"): Promise<Article[]>;
-  getArticle(slug: string): Promise<Article | null>;
   listFaqItems(category?: string): Promise<FAQItem[]>;
 }
 ```
 
-Today's homepage/FAQ copy is hardcoded directly in `components/home/*` — pages/components should call this interface (never Prisma directly) once it exists, for any marketing/editorial content. See [ROADMAP.md](./ROADMAP.md) — CMS phase.
+See [ROADMAP.md](./ROADMAP.md) — Phase 10.
 
 ## Auth
 

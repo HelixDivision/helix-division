@@ -44,7 +44,6 @@ export default async function NewProductPage() {
           casNumber: "",
           sequence: "",
           storageInstructions: "",
-          labTestingSummary: "",
           featured: false,
           newArrival: false,
           bestSeller: false,

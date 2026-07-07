@@ -69,8 +69,27 @@ export async function getProductForAdmin(productId: string) {
       category: true,
       variants: { orderBy: { label: "asc" } },
       images: { orderBy: { position: "asc" } },
+      documents: { orderBy: { createdAt: "desc" } },
     },
   });
+}
+
+/**
+ * COA management (Phase 9.5) — replaces the old free-text labTestingSummary.
+ * Modeled as a single ProductDocument with kind=COA (upserted: at most one COA
+ * per product). The PDF itself lives in the Media Library; this just records
+ * the chosen URL against the product, which the PDP's CertificateCard renders
+ * as a real download.
+ */
+export async function setProductCoa(productId: string, url: string, label: string) {
+  await db.productDocument.deleteMany({ where: { productId, kind: "COA" } });
+  return db.productDocument.create({
+    data: { productId, kind: "COA", label: label.trim() || "Certificate of Analysis", url },
+  });
+}
+
+export async function deleteProductCoa(productId: string): Promise<void> {
+  await db.productDocument.deleteMany({ where: { productId, kind: "COA" } });
 }
 
 export interface ProductWriteInput {
@@ -87,7 +106,6 @@ export interface ProductWriteInput {
   casNumber?: string | null;
   sequence?: string | null;
   storageInstructions?: string | null;
-  labTestingSummary?: string | null;
   featured: boolean;
   newArrival: boolean;
   bestSeller: boolean;
@@ -136,7 +154,6 @@ function productData(input: ProductWriteInput) {
     casNumber: input.casNumber ?? null,
     sequence: input.sequence ?? null,
     storageInstructions: input.storageInstructions ?? null,
-    labTestingSummary: input.labTestingSummary ?? null,
     featured: input.featured,
     newArrival: input.newArrival,
     bestSeller: input.bestSeller,
@@ -276,7 +293,6 @@ export async function duplicateProduct(productId: string) {
       casNumber: source.casNumber,
       sequence: source.sequence,
       storageInstructions: source.storageInstructions,
-      labTestingSummary: source.labTestingSummary,
       featured: false,
       newArrival: false,
       bestSeller: false,

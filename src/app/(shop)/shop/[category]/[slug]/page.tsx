@@ -147,7 +147,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </AccordionTrigger>
             <AccordionContent>
               <p className="text-foreground-muted">
-                {product.labTestingSummary ?? "Third-party lab testing data pending publication."}
+                {product.documents?.some((doc) => doc.kind === "coa")
+                  ? "Independent third-party analysis is documented in the Certificate of Analysis below — download it for the full purity and identity results."
+                  : "Third-party lab testing data pending publication. Certificate of Analysis available on request."}
               </p>
             </AccordionContent>
           </AccordionItem>

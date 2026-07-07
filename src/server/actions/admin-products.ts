@@ -12,8 +12,10 @@ import {
 import {
   createProduct,
   deleteProduct,
+  deleteProductCoa,
   duplicateProduct,
   replaceProductImages,
+  setProductCoa,
   setProductFeatured,
   setProductStatus,
   updateProduct,
@@ -122,6 +124,32 @@ export async function duplicateProductAction(productId: string): Promise<SavePro
     const copy = await duplicateProduct(productId);
     revalidateCatalog();
     return { success: true, productId: copy.id };
+  } catch (error) {
+    return { success: false, error: errorMessage(error) };
+  }
+}
+
+export async function setProductCoaAction(
+  productId: string,
+  url: string,
+  label: string,
+): Promise<ActionResult> {
+  if (!(await requireAdmin())) return NOT_AUTHORIZED;
+  try {
+    await setProductCoa(productId, url, label);
+    revalidateCatalog();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: errorMessage(error) };
+  }
+}
+
+export async function deleteProductCoaAction(productId: string): Promise<ActionResult> {
+  if (!(await requireAdmin())) return NOT_AUTHORIZED;
+  try {
+    await deleteProductCoa(productId);
+    revalidateCatalog();
+    return { success: true };
   } catch (error) {
     return { success: false, error: errorMessage(error) };
   }

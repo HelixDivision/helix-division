@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ProductCoaManager } from "@/components/admin/ProductCoaManager";
 import { ProductForm, type CategoryOption } from "@/components/admin/ProductForm";
 import { ProductImagesForm } from "@/components/admin/ProductImagesForm";
 import { listCategoriesForAdmin } from "@/server/services/admin-categories";
@@ -66,7 +67,6 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
           casNumber: product.casNumber ?? "",
           sequence: product.sequence ?? "",
           storageInstructions: product.storageInstructions ?? "",
-          labTestingSummary: product.labTestingSummary ?? "",
           featured: product.featured,
           newArrival: product.newArrival,
           bestSeller: product.bestSeller,
@@ -99,6 +99,16 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
               kind: image.kind,
             })),
           }}
+        />
+      </div>
+
+      <div className="border-border border-t pt-8">
+        <ProductCoaManager
+          productId={product.id}
+          currentCoa={(() => {
+            const coa = product.documents.find((doc) => doc.kind === "COA");
+            return coa ? { url: coa.url, label: coa.label } : null;
+          })()}
         />
       </div>
     </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Logo } from "@/branding/logo/Logo";
+import { NewsletterSignup } from "@/components/marketing/NewsletterSignup";
 import { footerNav, legalNav } from "@/config/nav";
 import { siteConfig } from "@/config/site";
 
@@ -61,7 +62,19 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="border-border mt-12 flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="border-border mt-12 border-t pt-8">
+          <h3 className="font-heading text-foreground-primary text-xs tracking-wide uppercase">
+            Research Briefings
+          </h3>
+          <p className="text-foreground-muted mt-2 max-w-md text-sm">
+            Occasional product updates and research documentation. No spam.
+          </p>
+          <div className="mt-4 max-w-md">
+            <NewsletterSignup source="footer" />
+          </div>
+        </div>
+
+        <div className="border-border mt-10 flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-x-5 gap-y-2">
             {legalNav.map((item) => (
               <Link

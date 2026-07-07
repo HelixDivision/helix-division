@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ImagePlus, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Controller, FormProvider, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
+import { MediaPickerDialog } from "@/components/admin/MediaPickerDialog";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
@@ -21,11 +22,11 @@ import { IMAGE_KINDS } from "@/lib/validations/admin";
 import { replaceProductImagesAction } from "@/server/actions/admin-products";
 
 /**
- * Admin product-image manager (Phase 9). Manages ProductImage rows — path/URL,
- * alt text, kind, and ordering (array order = display position; the first
- * image is what product cards show). Points at files under /public/products
- * or any external URL; binary upload needs a storage provider and is a
- * documented future integration (ROADMAP.md), not faked here.
+ * Admin product-image manager (Phase 9; media-library-backed in Phase 9.5).
+ * Manages ProductImage rows — image, alt text, kind, and ordering (array order
+ * = display position; the first image is what product cards show). Images are
+ * chosen/uploaded through the Media Library (MediaPickerDialog); a URL field
+ * remains for existing `/products/...` seed paths or external URLs.
  */
 
 interface ImageFormValues {
@@ -63,6 +64,7 @@ export function ProductImagesForm({
 
   const form = useForm<ImageFormValues>({ defaultValues });
   const imageArray = useFieldArray({ control: form.control, name: "images" });
+  const [pickerIndex, setPickerIndex] = useState<number | null>(null);
 
   async function onSubmit(values: ImageFormValues) {
     setIsSubmitting(true);
@@ -102,7 +104,7 @@ export function ProductImagesForm({
 
         {imageArray.fields.length === 0 && (
           <p className="text-foreground-muted text-sm">
-            No images — add a path under /products (e.g. /products/bpc-157.png) or a full URL.
+            No images — “Add Image”, then choose one from the Media Library.
           </p>
         )}
 
@@ -113,11 +115,22 @@ export function ProductImagesForm({
           >
             <ImagePreview index={index} />
             <div className="grid flex-1 gap-4 sm:grid-cols-2">
-              <TextField
-                name={`images.${index}.url`}
-                label="Path / URL"
-                placeholder="/products/..."
-              />
+              <div className="flex flex-col gap-1.5">
+                <TextField
+                  name={`images.${index}.url`}
+                  label="Image (Media Library path or URL)"
+                  placeholder="/uploads/... or /products/..."
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-fit"
+                  onClick={() => setPickerIndex(index)}
+                >
+                  <ImagePlus className="size-4" /> Choose from Library
+                </Button>
+              </div>
               <TextField name={`images.${index}.alt`} label="Alt text" />
               <Controller
                 name={`images.${index}.kind`}
@@ -178,6 +191,22 @@ export function ProductImagesForm({
           {isSubmitting ? "Saving..." : "Save Images"}
         </Button>
       </form>
+
+      <MediaPickerDialog
+        open={pickerIndex !== null}
+        onOpenChange={(open) => !open && setPickerIndex(null)}
+        kind="IMAGE"
+        folder="products"
+        title="Select or Upload a Product Image"
+        onSelect={(asset) => {
+          if (pickerIndex === null) return;
+          form.setValue(`images.${pickerIndex}.url`, asset.url, { shouldDirty: true });
+          if (asset.alt) {
+            form.setValue(`images.${pickerIndex}.alt`, asset.alt, { shouldDirty: true });
+          }
+          setPickerIndex(null);
+        }}
+      />
     </FormProvider>
   );
 }

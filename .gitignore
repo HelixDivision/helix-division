@@ -46,3 +46,7 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Uploaded media (Media Library) — served from disk in dev; production uses cloud storage
+public/uploads/*
+!public/uploads/.gitkeep

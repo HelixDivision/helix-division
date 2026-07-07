@@ -66,7 +66,6 @@ export interface ProductFormValues {
   casNumber: string;
   sequence: string;
   storageInstructions: string;
-  labTestingSummary: string;
   featured: boolean;
   newArrival: boolean;
   bestSeller: boolean;
@@ -279,7 +278,10 @@ export function ProductForm({
             label="Storage instructions (optional)"
             rows={2}
           />
-          <TextareaField name="labTestingSummary" label="Lab testing summary (optional)" rows={2} />
+          <p className="text-foreground-muted text-xs">
+            Lab testing is now documented by uploading a Certificate of Analysis (see the COA
+            section below), not free text.
+          </p>
         </section>
 
         <section className="flex flex-col gap-4">

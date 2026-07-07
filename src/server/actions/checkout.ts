@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { getEnabledProviders } from "@/lib/payments/provider";
 import { checkoutInformationSchema } from "@/lib/validations/checkout";
 import { errorMessage, fieldErrorsFrom, type ActionResult } from "@/server/actions/shared";
+import { recordAnalyticsEvent } from "@/server/services/analytics-capture";
 import {
   confirmPaymentSubmitted,
   createOrder,
@@ -83,6 +84,9 @@ export async function createOrderAction(
       providerId: parsed.data.providerId,
     });
     orderId = order.id;
+    // First-party PURCHASE event (Phase 9.5) — closes the analytics funnel and
+    // ties revenue to the visitor cookie. Best-effort; never fails the order.
+    await recordAnalyticsEvent({ type: "PURCHASE", value: order.total, orderId: order.id });
   } catch (error) {
     return { success: false, error: errorMessage(error) };
   }

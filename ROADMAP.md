@@ -25,11 +25,19 @@ Login, Register, Forgot/Reset Password, Email Verification (tracked via `User.em
 - v2 modules still scaffolded-only (models exist, no UI): Coupons, Discounts, Reviews, Shipping, Returns, Analytics, Content/Blog, Email Campaigns, Media Library, Users & Roles.
 - Binary image *upload* (vs. path/URL entry) is deferred — needs a storage provider (see Known Future Integrations).
 
-## Phase 10 — CMS / Content Layer
+## Phase 9.5 — Admin/Content Expansion — complete
 
-- Build the `ContentRepository` interface documented in [API.md](./API.md#content-repository-libcontent) against `Page`/`Article`/`FAQItem`, directly on Prisma (already live — no separate migration-later step needed the way catalog/orders had one).
-- Migrate homepage/FAQ copy currently hardcoded in `components/home/*` to read through this repository — a mechanical extraction, not a redesign.
-- Decide then whether a real headless CMS (Sanity/Payload/etc.) backs the repository or an admin-authored in-app editor does; the repository interface should make that swap low-risk either way.
+Not originally a numbered phase — a batch of remaining admin/content features requested after Phase 9. Built: **Media Library** (real image/PDF uploads behind a swappable `StorageProvider`, reusable `MediaPickerDialog`); **COA uploads** replacing the free-text lab-testing field; **Research Center CMS** (`Article` block editor with topics/tags/featured/homepage-placement/SEO, draft/publish/schedule, public `/research`); **Newsletter CMS** (`Newsletter` + `NewsletterSubscriber`, public `/newsletter` + footer signup); **Analytics** (first-party `AnalyticsEvent` capture + `/admin/analytics` dashboard, optional GA4); seeded Super Admin `support@helixdivision.com`. Full detail in [ARCHITECTURE.md](./ARCHITECTURE.md) (§ Storage Architecture / § Analytics / § Content Layer) and [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md).
+
+- **Storage note**: `LocalStorageProvider` (writes `public/uploads/`) is the dev implementation; a cloud adapter (Vercel Blob/S3) is the one-file production swap — do it as part of Deployment (Phase 15) if not sooner.
+
+## Phase 10 — Generic Marketing CMS / Content Layer
+
+The Research Center and Newsletter CMSes are **already built** (Phase 9.5). What remains is the *generic page* CMS for the hardcoded marketing copy:
+
+- Build the `ContentRepository` interface documented in [API.md](./API.md#content-repository-libcontent) against `Page`/`FAQItem`, directly on Prisma.
+- Migrate homepage/FAQ copy currently hardcoded in `components/home/*` to read through this repository — a mechanical extraction, not a redesign. (Reuse the Phase-9.5 `ContentBlock`/`ContentBlockRenderer` where it fits.)
+- Decide then whether a real headless CMS (Sanity/Payload/etc.) backs the repository or an admin-authored in-app editor does.
 
 ## Phase 11 — NOW Payments Integration
 

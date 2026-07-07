@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Oswald } from "next/font/google";
+import { Suspense } from "react";
 
+import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
+import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { AnnouncementBar } from "@/components/layout/AnnouncementBar";
 import { Footer } from "@/components/layout/Footer";
@@ -78,6 +81,10 @@ export default function RootLayout({
             <Toaster />
           </ThemeProvider>
         </SessionProvider>
+        <Suspense fallback={null}>
+          <AnalyticsTracker />
+        </Suspense>
+        <GoogleAnalytics />
       </body>
     </html>
   );
