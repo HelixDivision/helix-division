@@ -72,10 +72,39 @@ export interface OrderRecord {
   currency: string;
   shippingAddress: ShippingAddressRecord;
   researchAcknowledged: boolean;
+  // Fulfillment (Phase 9 — set by the admin ship flow).
+  trackingNumber: string | null;
+  trackingCarrier: string | null;
+  shippedAt: string | null;
+  // Inventory lifecycle flags (Phase 9) — written only via orders.ts's
+  // inventory hooks; reserved gates release, deducted gates deduction.
+  inventoryReserved: boolean;
+  inventoryDeducted: boolean;
   items: OrderItemRecord[];
   payment: PaymentRecord | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FindOrdersParams {
+  status?: OrderStatusValue;
+  /** Matches order number or customer email (case-insensitive contains). */
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface FindOrdersResult {
+  orders: OrderRecord[];
+  total: number;
+}
+
+export interface OrderAdminStats {
+  totalOrders: number;
+  /** PAYMENT_SUBMITTED — the admin reconciliation queue (e.g. Wise transfers to verify). */
+  awaitingReview: number;
+  /** Sum of Order.total across confirmed-or-later, non-cancelled/refunded orders. */
+  confirmedRevenue: number;
 }
 
 export interface CreateOrderInput {
@@ -102,6 +131,17 @@ export interface OrderRepository {
   // user's order) when orderId exists but belongs to someone else.
   findOrdersForUser(userId: string): Promise<OrderRecord[]>;
   findOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null>;
+  // Admin surface (Phase 9) — called only through orders.ts like everything else.
+  findMany(params: FindOrdersParams): Promise<FindOrdersResult>;
+  getAdminStats(): Promise<OrderAdminStats>;
+  updateShipping(
+    orderId: string,
+    shipping: { trackingNumber: string; trackingCarrier: string | null; shippedAt: Date },
+  ): Promise<OrderRecord>;
+  updateInventoryFlags(
+    orderId: string,
+    flags: { reserved?: boolean; deducted?: boolean },
+  ): Promise<OrderRecord>;
   attachPayment(orderId: string, payment: PaymentRecord): Promise<OrderRecord>;
   updateStatus(orderId: string, status: OrderStatusValue): Promise<OrderRecord>;
   updatePaymentStatus(
@@ -110,6 +150,14 @@ export interface OrderRepository {
     extra?: { confirmedAt?: Date },
   ): Promise<OrderRecord>;
 }
+
+/** Statuses whose totals count as real revenue (payment verified or later). */
+const REVENUE_STATUSES: OrderStatusValue[] = [
+  "PAYMENT_CONFIRMED",
+  "PROCESSING",
+  "SHIPPED",
+  "DELIVERED",
+];
 
 function generateOrderNumber(): string {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -133,6 +181,11 @@ class InMemoryOrderRepository implements OrderRepository {
       orderNumber: generateOrderNumber(),
       status: "PENDING",
       payment: null,
+      trackingNumber: null,
+      trackingCarrier: null,
+      shippedAt: null,
+      inventoryReserved: false,
+      inventoryDeducted: false,
       createdAt: now,
       updatedAt: now,
       ...input,
@@ -155,6 +208,67 @@ class InMemoryOrderRepository implements OrderRepository {
   async findOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null> {
     const order = this.store.get(orderId);
     return order && order.userId === userId ? order : null;
+  }
+
+  async findMany(params: FindOrdersParams): Promise<FindOrdersResult> {
+    const search = params.search?.toLowerCase();
+    const filtered = [...this.store.values()]
+      .filter((order) => (params.status ? order.status === params.status : true))
+      .filter((order) =>
+        search
+          ? order.orderNumber.toLowerCase().includes(search) ||
+            order.email.toLowerCase().includes(search)
+          : true,
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const page = params.page ?? 1;
+    const pageSize = params.pageSize ?? 20;
+    return {
+      orders: filtered.slice((page - 1) * pageSize, page * pageSize),
+      total: filtered.length,
+    };
+  }
+
+  async getAdminStats(): Promise<OrderAdminStats> {
+    const orders = [...this.store.values()];
+    return {
+      totalOrders: orders.length,
+      awaitingReview: orders.filter((o) => o.status === "PAYMENT_SUBMITTED").length,
+      confirmedRevenue: orders
+        .filter((o) => REVENUE_STATUSES.includes(o.status))
+        .reduce((sum, o) => sum + o.total, 0),
+    };
+  }
+
+  async updateShipping(
+    orderId: string,
+    shipping: { trackingNumber: string; trackingCarrier: string | null; shippedAt: Date },
+  ): Promise<OrderRecord> {
+    const order = this.getOrThrow(orderId);
+    const updated: OrderRecord = {
+      ...order,
+      trackingNumber: shipping.trackingNumber,
+      trackingCarrier: shipping.trackingCarrier,
+      shippedAt: shipping.shippedAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    this.store.set(orderId, updated);
+    return updated;
+  }
+
+  async updateInventoryFlags(
+    orderId: string,
+    flags: { reserved?: boolean; deducted?: boolean },
+  ): Promise<OrderRecord> {
+    const order = this.getOrThrow(orderId);
+    const updated: OrderRecord = {
+      ...order,
+      inventoryReserved: flags.reserved ?? order.inventoryReserved,
+      inventoryDeducted: flags.deducted ?? order.inventoryDeducted,
+      updatedAt: new Date().toISOString(),
+    };
+    this.store.set(orderId, updated);
+    return updated;
   }
 
   async attachPayment(orderId: string, payment: PaymentRecord): Promise<OrderRecord> {
@@ -287,6 +401,11 @@ interface PrismaOrderRow {
   currency: string;
   shippingAddressJson: Prisma.JsonValue;
   researchAcknowledged: boolean;
+  trackingNumber: string | null;
+  trackingCarrier: string | null;
+  shippedAt: Date | null;
+  inventoryReserved: boolean;
+  inventoryDeducted: boolean;
   createdAt: Date;
   updatedAt: Date;
   items: PrismaOrderItemRow[];
@@ -318,6 +437,11 @@ function toOrderRecord(order: PrismaOrderRow): OrderRecord {
     currency: order.currency,
     shippingAddress: order.shippingAddressJson as unknown as ShippingAddressRecord,
     researchAcknowledged: order.researchAcknowledged,
+    trackingNumber: order.trackingNumber,
+    trackingCarrier: order.trackingCarrier,
+    shippedAt: order.shippedAt ? order.shippedAt.toISOString() : null,
+    inventoryReserved: order.inventoryReserved,
+    inventoryDeducted: order.inventoryDeducted,
     items: order.items.map((item) => ({
       variantId: item.variantId,
       nameSnapshot: item.nameSnapshot,
@@ -394,6 +518,76 @@ class PrismaOrderRepository implements OrderRepository {
       include: ORDER_INCLUDE,
     });
     return order ? toOrderRecord(order) : null;
+  }
+
+  async findMany(params: FindOrdersParams): Promise<FindOrdersResult> {
+    const page = params.page ?? 1;
+    const pageSize = params.pageSize ?? 20;
+    const where: Prisma.OrderWhereInput = {
+      ...(params.status ? { status: params.status } : {}),
+      ...(params.search
+        ? {
+            OR: [
+              { orderNumber: { contains: params.search, mode: "insensitive" } },
+              { email: { contains: params.search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
+    const [orders, total] = await Promise.all([
+      db.order.findMany({
+        where,
+        include: ORDER_INCLUDE,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      db.order.count({ where }),
+    ]);
+    return { orders: orders.map(toOrderRecord), total };
+  }
+
+  async getAdminStats(): Promise<OrderAdminStats> {
+    const [totalOrders, awaitingReview, revenue] = await Promise.all([
+      db.order.count(),
+      db.order.count({ where: { status: "PAYMENT_SUBMITTED" } }),
+      db.order.aggregate({
+        _sum: { total: true },
+        where: { status: { in: REVENUE_STATUSES } },
+      }),
+    ]);
+    return {
+      totalOrders,
+      awaitingReview,
+      confirmedRevenue: Number(revenue._sum.total ?? 0),
+    };
+  }
+
+  async updateShipping(
+    orderId: string,
+    shipping: { trackingNumber: string; trackingCarrier: string | null; shippedAt: Date },
+  ): Promise<OrderRecord> {
+    const order = await db.order.update({
+      where: { id: orderId },
+      data: shipping,
+      include: ORDER_INCLUDE,
+    });
+    return toOrderRecord(order);
+  }
+
+  async updateInventoryFlags(
+    orderId: string,
+    flags: { reserved?: boolean; deducted?: boolean },
+  ): Promise<OrderRecord> {
+    const order = await db.order.update({
+      where: { id: orderId },
+      data: {
+        ...(flags.reserved === undefined ? {} : { inventoryReserved: flags.reserved }),
+        ...(flags.deducted === undefined ? {} : { inventoryDeducted: flags.deducted }),
+      },
+      include: ORDER_INCLUDE,
+    });
+    return toOrderRecord(order);
   }
 
   async attachPayment(orderId: string, payment: PaymentRecord): Promise<OrderRecord> {

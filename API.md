@@ -111,6 +111,11 @@ interface OrderRepository {
   // missing one — no caller-side ownership check, no ownership oracle.
   findOrdersForUser(userId: string): Promise<OrderRecord[]>;
   findOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null>;
+  // Admin reads/writes (Phase 9) — reached only through orders.ts.
+  findMany(params: FindOrdersParams): Promise<FindOrdersResult>;   // filter (status/search) + pagination
+  getAdminStats(): Promise<OrderAdminStats>;                       // totalOrders, awaitingReview, confirmedRevenue
+  updateShipping(orderId, { trackingNumber, trackingCarrier, shippedAt }): Promise<OrderRecord>;
+  updateInventoryFlags(orderId, { reserved?, deducted? }): Promise<OrderRecord>;
   attachPayment(orderId: string, payment: PaymentRecord): Promise<OrderRecord>;
   updateStatus(orderId: string, status: OrderStatus): Promise<OrderRecord>;
   updatePaymentStatus(orderId: string, status: PaymentStatus): Promise<OrderRecord>;
@@ -141,15 +146,19 @@ interface DiscountService {
   calculateDiscount(input: { subtotal: number; couponCode?: string }): number;
 }
 
-// inventory.ts
+// inventory.ts — real (PrismaInventoryService) as of Phase 9
 type ReservationStrategy = "reserve-on-order" | "reserve-on-payment-confirmed";
 interface ReservationPolicy { strategy: ReservationStrategy; holdDurationMinutes?: number; }
 interface InventoryService {
   getReservationPolicy(providerId: string): ReservationPolicy;
+  assertAvailable(lines: OrderItemRecord[]): Promise<void>;   // pre-checkout gate, throws InsufficientStockError
   reserveInventory(input: { orderId: string; lines: OrderItemRecord[] }): Promise<void>;
   releaseInventory(orderId: string): Promise<void>;
   confirmInventoryDeduction(orderId: string): Promise<void>;
 }
+// Decrements ProductVariant.availableQuantity (sellable-now) at reserve, restores at
+// release; decrements ProductVariant.stock (physical) at confirmInventoryDeduction.
+// Manual admin adjustments are a SEPARATE service (admin-inventory.ts), not this one.
 
 // notifications.ts
 interface NotificationService {
@@ -174,6 +183,12 @@ confirmPaymentSubmitted(orderId: string): Promise<OrderRecord>; // provider read
 getOrder(orderId: string): Promise<OrderRecord | null>;                      // internal/checkout — no ownership filter
 getOrdersForUser(userId: string): Promise<OrderRecord[]>;                    // account order history (Phase 8)
 getOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null>; // account order detail (Phase 8)
+// Admin orchestration (Phase 9) — the ONLY entry points admin order actions call:
+listOrders(params: FindOrdersParams): Promise<FindOrdersResult>;
+getOrderStats(): Promise<OrderAdminStats>;
+getAllowedTransitions(status: OrderStatusValue): OrderStatusValue[];          // the transition whitelist
+updateOrderStatusAsAdmin(orderId, nextStatus): Promise<OrderRecord>;         // + inventory/payment side effects per edge
+shipOrder(orderId, { trackingNumber, trackingCarrier? }): Promise<OrderRecord>; // PROCESSING → SHIPPED, sends notification
 ```
 
 ## User Service (`src/server/services/user.ts`)
@@ -190,6 +205,35 @@ deleteAddress(addressId: string, userId: string): Promise<void>;                
 ```
 
 `changePassword` (in `auth.ts`, not here): `changePassword(userId, currentPassword, newPassword): Promise<void>` — verifies the current password with bcrypt, updates the hash, logs a `password_changed` audit event.
+
+## Admin Services (`src/server/services/admin-*.ts`)
+
+Phase 9. Each is called only by its matching role-checked action file; storefront reads stay in `lib/catalog.ts` (ACTIVE-only), these are the write side + admin-shaped reads (all statuses, filters, pagination).
+
+```ts
+// admin-products.ts — write side + admin reads
+listProductsForAdmin(params) / getProductForAdmin(id)
+createProduct(input, variants) / updateProduct(id, input, variants)  // variant reconcile: update-by-id / create-new / delete-removed (blocked if ordered)
+replaceProductImages(id, images) / setProductStatus(id, status) / setProductFeatured(id, featured)
+duplicateProduct(id)   // copies → DRAFT + unfeatured, suffixed slug/sku
+deleteProduct(id)      // hard delete; blocked (throws) if the product was ever ordered — archive instead
+
+// admin-categories.ts — createCategory/updateCategory/deleteCategory (delete blocked while products remain) + list/get
+// admin-inventory.ts — listInventoryForAdmin, getLowStockCount, adjustStock(variantId, {availableQuantity, stock, lowStockThreshold, backorderAllowed})  // absolute set, separate from the order-flow InventoryService
+// admin-customers.ts — listCustomersForAdmin, getCustomerForAdmin, getCustomerCount  // read-only; no role mutation exposed
+// admin-dashboard.ts — getDashboardStats()  // composes orders/customers/inventory services + a product count
+```
+
+## Admin Server Actions (`src/server/actions/admin-*.ts`)
+
+Every one calls `requireAdmin()` (from `server/actions/shared.ts`) first — the second authorization layer, never trusting `proxy.ts` alone (AUTH.md#authorization-flow) — then validates with `lib/validations/admin.ts` and delegates to a service. Product/category/inventory mutations `revalidatePath("/", "layout")` because catalog/stock edits ripple into the homepage rails, `/shop`, and PDPs, not just admin pages.
+
+| File | Actions |
+|---|---|
+| `admin-products.ts` | `saveProductAction`, `replaceProductImagesAction`, `setProductStatusAction`, `setProductFeaturedAction`, `duplicateProductAction`, `deleteProductAction` |
+| `admin-categories.ts` | `saveCategoryAction`, `deleteCategoryAction` |
+| `admin-inventory.ts` | `adjustStockAction` |
+| `admin-orders.ts` | `updateOrderStatusAction`, `shipOrderAction` (both → `orders.ts`) |
 
 ## Catalog Read Functions
 
@@ -222,7 +266,7 @@ Actions validate input via `lib/validations` (zod) and delegate to `server/servi
 | `auth.ts` — `registerAction`, `requestPasswordResetAction`, `resetPasswordAction`, `verifyEmailAction` | Register/reset/verify flows; validate via `lib/validations/auth.ts`, delegate to `server/services/auth.ts`, rate-limited at entry. | **Built** — Phase 7 (see [AUTH.md](./AUTH.md)) |
 | `account.ts` — `updateProfileAction`, `createAddressAction`, `updateAddressAction`, `deleteAddressAction`, `changePasswordAction` | Customer-account mutations. **Every action re-checks `auth()`** and acts only on the caller's own data (proxy guard is not trusted alone); validate via `lib/validations/account.ts`, delegate to `server/services/user.ts` (profile/addresses) or `auth.ts` (`changePassword`). | **Built** — Phase 8 |
 | Cart mutations | Cart has no Server Action layer — it's pure client state (`useCartStore`, Zustand + localStorage persist), since there's nothing server-side to validate or persist for an anonymous, pre-checkout cart. | **By design, not a gap** |
-| `admin-products.ts`, `admin-orders.ts`, `admin-payments.ts` | Admin CRUD/status-transition actions, role-checked in the action itself in addition to the layout guard | **Not built** — see [ROADMAP.md](./ROADMAP.md) |
+| `admin-products.ts`, `admin-categories.ts`, `admin-inventory.ts`, `admin-orders.ts` | Admin CRUD/status-transition actions, each role-checked via `requireAdmin()` in addition to the proxy + layout guards | **Built** — Phase 9 (see [§ Admin Server Actions](#admin-server-actions-srcserveractionsadmin-ts)) |
 
 ## Content Repository (`src/lib/content/`)
 

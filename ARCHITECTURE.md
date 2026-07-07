@@ -2,7 +2,7 @@
 
 Full system architecture for Helix Division. This document is the long-form reference; [README.md](./README.md) is the quick-start, [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) is the onboarding doc for a new session, [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) covers visual tokens/components, [PROJECT_RULES.md](./PROJECT_RULES.md) covers engineering conventions, [API.md](./API.md) covers Server Actions/Repository/Service/PaymentProvider contracts, [ROADMAP.md](./ROADMAP.md) covers everything not yet built.
 
-**Status**: Phases 1–8 complete (engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration, authentication & authorization, customer accounts). A real Postgres database (hosted on Neon) is now live and is the single source of truth for the catalog and orders — see [§ Data & Persistence](#data--persistence-a-real-database). Next phase is the Admin Dashboard; see [ROADMAP.md](./ROADMAP.md) for the full remaining order (reordered so Real Prisma Integration lands before Auth/Accounts/Admin, so none of those get built against a throwaway in-memory store).
+**Status**: Phases 1–9 complete (engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration, authentication & authorization, customer accounts, admin dashboard). A real Postgres database (hosted on Neon) is now live and is the single source of truth for the catalog and orders — see [§ Data & Persistence](#data--persistence-a-real-database). Inventory is now really tracked (Phase 9): `InventoryService` decrements stock through the order lifecycle and out-of-stock items are blocked at checkout server-side. Next phase is the CMS / Content Layer; see [ROADMAP.md](./ROADMAP.md) for the full remaining order.
 
 ## Guiding Constraints
 
@@ -26,7 +26,7 @@ helix-division/
 │   │   ├── (account)/
 │   │   │   ├── (auth-forms)/{login, register, forgot-password, reset-password/[token], verify-email/[token]}  — built, Phase 7
 │   │   │   └── account/{layout.tsx, page.tsx, orders/{page.tsx,[id]/page.tsx}, addresses/, profile/, settings/}  — built, Phase 8
-│   │   ├── (admin)/admin/{...16 sub-modules...}                                     — not built, see ROADMAP.md
+│   │   ├── (admin)/admin/{layout.tsx, page.tsx (dashboard), products/{page,new,[id]}, categories/, inventory/, orders/{page,[id]}, customers/{page,[id]}}  — built, Phase 9
 │   │   ├── api/{webhooks/{now-payments,coinbase-commerce,btcpay,stripe}/route.ts, auth/[...nextauth]/route.ts}  — not built
 │   │   └── layout.tsx, globals.css, sitemap.ts, robots.ts
 │   ├── branding/{tokens/, logo/, icons/, illustrations/, assets/}
@@ -40,9 +40,9 @@ helix-division/
 │   │   ├── validations/checkout.ts # zod schemas
 │   │   └── payments/{provider.ts, types.ts, provider-labels.ts, adapters/}
 │   ├── server/
-│   │   ├── actions/{checkout.ts, catalog.ts, auth.ts, account.ts}   # "use server" — order/catalog + auth (register/reset/verify) + account (profile/address/password) actions
-│   │   ├── services/               # catalog.ts, orders.ts, shipping.ts, tax.ts, discounts.ts, inventory.ts, notifications.ts, auth.ts (auth only), user.ts (profile/addresses), auth-audit.ts, rate-limit.ts
-│   │   └── repositories/order-repository.ts   # PrismaOrderRepository — the ONLY file touching order storage directly
+│   │   ├── actions/{checkout, catalog, auth, account, admin-products, admin-categories, admin-inventory, admin-orders, shared}   # "use server" (shared.ts is sync helpers, incl. requireAdmin) — admin actions role-checked via requireAdmin()
+│   │   ├── services/               # catalog, orders, shipping, tax, discounts, inventory (real, Phase 9), notifications, auth, user, auth-audit, rate-limit, admin-{products,categories,inventory,customers,dashboard}
+│   │   └── repositories/order-repository.ts   # PrismaOrderRepository — the ONLY file touching order storage directly (admin reads/writes go through orders.ts → here)
 │   ├── store/{cart-store.ts, ui-store.ts, recently-viewed-store.ts}
 │   ├── types/{catalog.ts, next-auth.d.ts, ...}
 │   └── config/{site.ts, nav.ts}
@@ -63,7 +63,7 @@ helix-division/
 | `/checkout/confirmation/[orderId]` | Order summary, clears cart | **Built** — Phase 5 |
 | `/login`, `/register`, `/forgot-password`, `/reset-password/[token]`, `/verify-email/[token]` | Customer auth area | **Built** — Phase 7 (see AUTH.md) |
 | `/account`, `/account/orders`, `/account/orders/[id]`, `/account/addresses`, `/account/profile`, `/account/settings` | Customer dashboard — session-gated in `src/proxy.ts` + re-checked in the `(account)/account` layout | **Built** — Phase 8 |
-| `/admin/*` | Role-gated (`session.user.role === 'ADMIN'`, enforced in `(admin)` layout + `src/proxy.ts`) | **Not built** — see ROADMAP.md |
+| `/admin`, `/admin/products`, `/admin/products/{new,[id]}`, `/admin/categories`, `/admin/inventory`, `/admin/orders`, `/admin/orders/[id]`, `/admin/customers`, `/admin/customers/[id]` | Role-gated (`role === 'ADMIN'` in `src/proxy.ts` + `(admin)` layout + every admin action) | **Built** — Phase 9 |
 
 Route groups `(marketing)`, `(shop)`, `(account)`, `(admin)` share layouts without affecting URL paths.
 
@@ -124,18 +124,19 @@ Nothing skips a layer: components never call a service directly, and services ne
     → total        = subtotal - discount + shippingCost + tax
   ```
   All four terms (`discount`, `shippingCost`, `tax`, `total`) are real columns on `Order` (see [§ Database Schema](#database-schema-core-models)) even though `discount`/`tax` compute to `0` today.
-- **`inventory.ts`** — reservation timing depends on the **payment provider**, not one universal moment:
+- **`inventory.ts`** — **real stock tracking as of Phase 9** (`PrismaInventoryService`, replacing the Phase 5 `NoopInventoryService`). Reservation timing still depends on the **payment provider**, not one universal moment:
   ```ts
   type ReservationStrategy = "reserve-on-order" | "reserve-on-payment-confirmed";
   interface ReservationPolicy { strategy: ReservationStrategy; holdDurationMinutes?: number; }
   interface InventoryService {
     getReservationPolicy(providerId: string): ReservationPolicy;
+    assertAvailable(lines: OrderItemRecord[]): Promise<void>;           // pre-checkout stock gate
     reserveInventory(input: { orderId: string; lines: OrderItemRecord[] }): Promise<void>;
     releaseInventory(orderId: string): Promise<void>;
     confirmInventoryDeduction(orderId: string): Promise<void>;
   }
   ```
-  Fast/webhook-confirmable methods (NOW Payments, Coinbase Commerce, Bitcoin, Stripe, Authorize) reserve at order creation with a short-to-medium hold. Wise (slow manual bank reconciliation) also reserves at order creation but with a long hold (`1440` minutes) since confirmation can take a business day or more. The `manual` provider — fully offline, no time pressure — doesn't reserve until an admin actually confirms payment (`"reserve-on-payment-confirmed"`). `orders.ts` consults `getReservationPolicy(providerId)` right after order creation and calls `reserveInventory` immediately only for `"reserve-on-order"` providers; for `"reserve-on-payment-confirmed"` providers the call is deferred to `confirmPaymentSubmitted` instead. `NoopInventoryService` implements all four methods as documented no-ops today (no real stock table yet) — but the *timing* is real and provider-dependent, so swapping in real stock decrements later only replaces the class, not the policy table or call sites.
+  Two stock fields on `ProductVariant`: **`availableQuantity`** (sellable-now — decremented at reservation, restored on release; this is what the storefront's `getStockStatus()` reads, so an item auto-shows "Out of Stock" the moment reservations exhaust it) and **`stock`** (physical on-hand — decremented only at `confirmInventoryDeduction`, when payment is confirmed). `reserveInventory` runs in a transaction and guards each decrement in the `WHERE` clause (`availableQuantity >= qty`, skipped for backorder-allowed variants) so two concurrent checkouts can't oversell — the loser's `updateMany` matches 0 rows and the whole reservation rolls back with `InsufficientStockError`. `orders.ts` runs `assertAvailable` on **every** checkout (the real out-of-stock gate — a stale client can't bypass it), then consults `getReservationPolicy(providerId)`: `reserveInventory` fires immediately for `"reserve-on-order"` providers, or is deferred to `confirmPaymentSubmitted` for `"reserve-on-payment-confirmed"` ones. Reserve/deduct/release are idempotency-gated by the `Order.inventoryReserved`/`inventoryDeducted` flags so no path double-decrements. Admin manual corrections (recounts, restocks) go through a separate `server/services/admin-inventory.ts` (absolute set, not deltas).
 - **`notifications.ts`** — `NotificationService { sendOrderConfirmation(order), sendPaymentReceived(order), sendShipmentNotification(order) }`. `ConsoleNotificationService` logs a structured message per call today (placeholder for a real email provider). Wired: `sendOrderConfirmation` after order creation, `sendPaymentReceived` after "I've sent the transfer."
 - **`lib/analytics.ts`** — deliberately in `lib/`, not `server/services/`, since events fire from both client components and Server Actions. `AnalyticsService.track(event, payload?)` where `event ∈ { product_viewed, add_to_cart, begin_checkout, place_order, payment_submitted }`. `ConsoleAnalyticsService` logs today. Wired at PDP render, `AddToCartButton`/`ProductCardLink`, `/checkout` mount, `createOrder`, `confirmPaymentSentAction`.
 
@@ -190,22 +191,23 @@ A Postgres database (hosted on Neon) is live and is the single source of truth f
 1. Checkout Review step calls `createOrderAction` → `orders.createOrder(...)` → `Order` at `PENDING`, pricing pipeline applied, inventory reserved now only if the chosen provider's policy is `"reserve-on-order"`.
 2. Customer is routed to `/checkout/payment/[orderId]`, which calls `createPaymentForOrder` → status `AWAITING_PAYMENT`, customer sees the chosen provider's instructions (Wise bank details + reference code today; NOW Payments/Coinbase Commerce would show a hosted crypto checkout once implemented) or a graceful "temporarily unavailable" state for non-functional adapters.
 3. Customer confirms ("I've sent the transfer") → `confirmPaymentSentAction` → `PAYMENT_SUBMITTED`; for `manual`-style providers, inventory reservation happens here instead of step 1.
-4. A future admin action (see [ROADMAP.md](./ROADMAP.md) — Admin Dashboard) reconciles and moves the order to `PAYMENT_CONFIRMED` → `PROCESSING`; webhook-capable providers (NOW Payments, Coinbase Commerce, Bitcoin) would do this automatically once implemented instead of requiring a manual admin step.
+4. An admin (Admin → Orders, Phase 9) reconciles and moves the order to `PAYMENT_CONFIRMED` (marks the payment confirmed + deducts physical stock) → `PROCESSING` → `SHIPPED` (requires a tracking number, sends the shipment notification) → `DELIVERED`; webhook-capable providers (NOW Payments, Coinbase Commerce, Bitcoin) would automate the `PAYMENT_CONFIRMED` step once implemented instead of requiring the manual reconciliation. Admin transitions follow a whitelist in `orders.ts` (`getAllowedTransitions`) and carry the inventory side effects (reserve/deduct on confirm, release reserved-but-not-deducted stock on cancel).
 
 Every order carries a `researchAcknowledged` boolean (required checkbox at checkout); registration sets the same compliance field on the user (`User.researchAcknowledgedAt`, since Phase 7). An order placed by an authenticated customer also carries their `userId` (set server-side in `createOrderAction` from the session — see [§ Repository Architecture](#repository-architecture)); guest orders leave it null and are not retroactively linked by email.
 
 ## Admin Module Map
 
-| Module | Phase |
+| Module | Status |
 |---|---|
-| Products, Inventory, Orders, Customers, Payments, Settings | **v1 — full CRUD** |
-| Coupons, Discounts, Reviews, Shipping, Returns, Analytics, Content/Blog, Email Campaigns, Media Library, Users & Roles | **v2 — scaffolded routes/models, incremental CRUD** |
+| Products, Inventory, Orders, Customers, Categories, Dashboard | **Built — Phase 9** (full CRUD where applicable) |
+| Payments, Settings | Folded into Orders (payment status transitions) / not yet a standalone module |
+| Coupons, Discounts, Reviews, Shipping, Returns, Analytics, Content/Blog, Email Campaigns, Media Library, Users & Roles | **v2 — scaffolded models, not yet built** |
 
-All modules share the same `DataTable`/`StatCard`/form primitives (see [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md#core-components)) so v2 modules are UI-consistent by default when built out. Not started yet — see [ROADMAP.md](./ROADMAP.md).
+All Phase 9 modules share the same table/`StatCard`/URL-driven `AdminToolbar`+`AdminPagination` primitives (see [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md#core-components)) so v2 modules are UI-consistent by default when built out. **Role gating is three-layered**: `proxy.ts` (`/admin/*` needs `role === "ADMIN"`), the `(admin)/admin` layout re-checks server-side, and every admin Server Action calls `requireAdmin()` — a Server Action endpoint is directly reachable regardless of which page triggered it, so it's never trusted to the proxy alone. Role *promotion* is deliberately not an admin action (stays `scripts/promote-admin.ts`) so a compromised admin session can't mint more admins.
 
 ## Database Schema (core models)
 
-`User, Address, Category(+attributeSchema), Product, ProductVariant(+attributes), ProductImage, ProductDocument, Cart, CartItem, Order(+discount,+shippingCost,+tax,+total,+researchAcknowledged), OrderItem(+variantLabelSnapshot,+imageSnapshot), Payment(provider,status,providerRef,+instructionsJson), Page, Article, FAQItem`, plus v2 stubs `Coupon, Discount, Review, ShippingZone, ReturnRequest`.
+`User, Address, Category(+attributeSchema,+seoTitle,+seoDescription), Product, ProductVariant(+attributes,+availableQuantity,+stock,+lowStockThreshold,+backorderAllowed), ProductImage, ProductDocument, Cart, CartItem, Order(+discount,+shippingCost,+tax,+total,+researchAcknowledged,+userId,+trackingNumber,+trackingCarrier,+shippedAt,+inventoryReserved,+inventoryDeducted), OrderItem(+variantLabelSnapshot,+imageSnapshot), Payment(provider,status,providerRef,+instructionsJson), Page, Article, FAQItem`, plus v2 stubs `Coupon, Discount, Review, ShippingZone, ReturnRequest`. Category SEO fields and the Order fulfillment/inventory-flag columns were added in Phase 9 (`prisma/migrations/*phase9*`).
 
 `PaymentMethod` enum: `WISE, NOW_PAYMENTS, COINBASE_COMMERCE, BITCOIN, MANUAL, STRIPE, AUTHORIZE` (ordered with the three decided production providers first).
 
@@ -235,4 +237,5 @@ Marketing content (Home copy, About, FAQ, Research articles, Blog, Legal/Policie
 - **Phase 6** — real Prisma integration: reordered ahead of Authentication/Accounts (see [ROADMAP.md](./ROADMAP.md)'s 2026-07-06 note) so those phases build on real persistence from day one instead of a throwaway in-memory store. Neon Postgres provisioned, first migration run, `PrismaOrderRepository` and Prisma-backed `lib/catalog.ts` are now the live implementations, `prisma/seed.ts` bootstraps a fresh database from the old static catalog data, `db:seed`/`db:reset` dev workflow scripts added.
 - **Phase 7** — authentication & authorization: Auth.js v5 Credentials + Prisma adapter (JWT sessions), login/register/forgot-reset/verify-email, `proxy.ts` route gating (`/account/*` any session, `/admin/*` `ADMIN`), 12-char password policy, rate-limit/audit architecture. Full detail in [AUTH.md](./AUTH.md).
 - **Phase 8** — customer accounts: `/account` dashboard (replacing Phase 7's stub), order history + ownership-scoped order detail, address book CRUD, profile, and an authenticated change-password flow. New `server/services/user.ts` owns profile/addresses (the reserved counterpart to `auth.ts`); orders gain authoritative `userId` ownership (set at checkout when authenticated, never inferred from email); the order repository gained ownership-aware reads. See [§ Repository Architecture](#repository-architecture) and [§ Service Layer Architecture](#service-layer-architecture).
-- **Phase 9+** — see [ROADMAP.md](./ROADMAP.md): Admin Dashboard, CMS, real payment-provider integrations, production hardening, deployment.
+- **Phase 9** — admin dashboard: role-gated `/admin` (products with full CRUD/duplicate/archive/image-management/SEO/featured-toggle, categories, inventory with manual adjustments, orders with status/payment/shipping/tracking transitions, customers), all sharing `DataTable`/`StatCard`/URL-driven toolbar+pagination primitives. Real inventory tracking landed here (`PrismaInventoryService`): automatic reserve/deduct/release through the order lifecycle, a server-side out-of-stock checkout gate, and automatic "Out of Stock" storefront status. Admin services (`admin-products`/`admin-categories`/`admin-inventory`/`admin-customers`/`admin-dashboard`) + role-checked actions; admin order transitions still route through `orders.ts` (a transition whitelist + the inventory/payment side effects live there, not in admin code).
+- **Phase 10+** — see [ROADMAP.md](./ROADMAP.md): CMS, real payment-provider integrations, production hardening, deployment.

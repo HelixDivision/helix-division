@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import type { PaymentStatus } from "@/lib/payments/types";
 import type { OrderStatusValue } from "@/server/repositories/order-repository";
 
 /**
@@ -38,3 +39,11 @@ const STATUS_VARIANT: Record<OrderStatusValue, BadgeVariant> = {
 export function OrderStatusBadge({ status }: { status: OrderStatusValue }) {
   return <Badge variant={STATUS_VARIANT[status]}>{ORDER_STATUS_LABELS[status]}</Badge>;
 }
+
+/** Payment-status wording (distinct from OrderStatus) — shared by the account and admin order-detail pages. */
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  pending: "Pending",
+  submitted: "Submitted — awaiting confirmation",
+  confirmed: "Confirmed",
+  failed: "Failed",
+};

@@ -1,6 +1,6 @@
 # Roadmap
 
-Everything completed so far (Phases 1–8: engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration, authentication & authorization, customer accounts) is described in [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing), [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md), and (for Phase 7 specifically) [AUTH.md](./AUTH.md). This document covers what's left, in the order it's expected to be tackled. **Each phase starts only with explicit approval — don't chain into the next one just because a prior one finished.**
+Everything completed so far (Phases 1–9: engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration, authentication & authorization, customer accounts, admin dashboard) is described in [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing), [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md), and (for Phase 7 specifically) [AUTH.md](./AUTH.md). This document covers what's left, in the order it's expected to be tackled. **Each phase starts only with explicit approval — don't chain into the next one just because a prior one finished.**
 
 **Reordered 2026-07-06 (twice)**: Real Prisma Integration was originally scheduled after Admin Dashboard, then moved to right after Customer Accounts, and finally moved again to run **before** Authentication — the earliest point it could go. Building Auth against real Prisma from the start avoided writing a throwaway in-memory `UserRepository` just to replace it a phase later, and Customer Accounts (order history, addresses) will land on real persistence immediately too.
 
@@ -16,13 +16,14 @@ Login, Register, Forgot/Reset Password, Email Verification (tracked via `User.em
 - `AccountMenuTrigger.tsx` grew into a real dropdown (name/email, dashboard + orders shortcuts, inline sign out).
 - Full detail in [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing) and [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md).
 
-## Phase 9 — Admin Dashboard
+## Phase 9 — Admin Dashboard — complete
 
-- v1 modules (full CRUD): Products, Inventory, Orders, Customers, Payments, Settings.
-- v2 modules (scaffolded routes, incremental CRUD): Coupons, Discounts, Reviews, Shipping, Returns, Analytics, Content/Blog, Email Campaigns, Media Library, Users & Roles.
-- Admin order-status transitions and the Wise "mark payment confirmed" reconciliation action both go through `orders.ts` — no direct repository or payment-adapter calls from admin pages/actions.
-- This is also where `InventoryService`'s `confirmInventoryDeduction`/`releaseInventory` get real callers (cancel order, mark shipped) for the first time.
-- Shares `DataTable`/`StatCard`/form primitives per [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md#core-components) so v2 modules are UI-consistent by default.
+- Built modules: **Dashboard** (overview stats + recent orders), **Products** (full CRUD, duplicate, archive/activate, variant editing, image management with ordering, SEO fields, homepage-featured toggle), **Categories** (CRUD + SEO, delete blocked while products remain), **Inventory** (manual absolute stock adjustments, low/out-of-stock filter), **Orders** (whitelisted status transitions, payment confirmation, shipping + tracking), **Customers** (list + per-customer profile/orders/addresses). All with search/filter/sort/pagination via the URL-driven `AdminToolbar`/`AdminPagination` primitives.
+- **Real inventory** (`PrismaInventoryService`, replacing `NoopInventoryService`): automatic reserve-on-order / release-on-cancel / deduct-on-payment-confirmed through the order lifecycle, idempotency-gated by `Order.inventoryReserved`/`inventoryDeducted`; a server-side `assertAvailable` gate blocks out-of-stock checkout even with a stale client; the storefront auto-shows "Out of Stock" (and disables Add to Cart) when `availableQuantity` hits 0.
+- Admin order-status transitions and the Wise "mark payment confirmed" reconciliation both go through `orders.ts` (`updateOrderStatusAsAdmin`/`shipOrder`/`getAllowedTransitions`) — no direct repository, inventory-service, or payment-adapter calls from admin pages/actions.
+- Three-layer role gating (`proxy.ts` + `(admin)` layout + `requireAdmin()` in every action). Role *promotion* stays out-of-band (`scripts/promote-admin.ts`), not a one-click admin action.
+- v2 modules still scaffolded-only (models exist, no UI): Coupons, Discounts, Reviews, Shipping, Returns, Analytics, Content/Blog, Email Campaigns, Media Library, Users & Roles.
+- Binary image *upload* (vs. path/URL entry) is deferred — needs a storage provider (see Known Future Integrations).
 
 ## Phase 10 — CMS / Content Layer
 
@@ -66,6 +67,7 @@ Login, Register, Forgot/Reset Password, Email Verification (tracked via `User.em
 
 - Real email delivery for `NotificationService` (Resend/Postmark/SES — undecided).
 - Real analytics sink for `AnalyticsService` (PostHog/GA4/Segment — undecided).
+- Binary image upload for the admin product-image manager (S3/Cloudinary/UploadThing — undecided). Today the manager takes a `/public/products/...` path or an external URL; the ordering/alt/kind/position editing is all real, only the file-upload-to-storage step is deferred.
 - Reviews (`Review` model exists as a v2 admin stub; no customer-facing review submission UI planned yet).
 - Coupon/discount UI at checkout (`DiscountService` interface is ready; no admin UI or checkout input field exists yet).
 - Tax-by-region rules (`TaxService` interface is ready; currently always returns `0`).

@@ -134,6 +134,10 @@ model Category {
   name            String
   slug            String   @unique
   description     String?
+  // SEO fields (Phase 9 — Admin Dashboard manages these; mirrors Product's
+  // seoTitle/seoDescription so category listing pages can generate metadata).
+  seoTitle        String?
+  seoDescription  String?
   // Describes which attribute keys/labels this category's products expose
   // (e.g. [{ "key": "dosage", "label": "Dosage" }] for peptides,
   // [{ "key": "size", "label": "Size" }, { "key": "color", "label": "Color" }]
@@ -344,6 +348,16 @@ model Order {
   currency             String      @default("USD")
   shippingAddressJson  Json
   researchAcknowledged Boolean     @default(false)
+  // Fulfillment fields (Phase 9 — set by the admin "mark shipped" flow).
+  trackingNumber       String?
+  trackingCarrier      String?
+  shippedAt            DateTime?
+  // Inventory lifecycle flags (Phase 9). Explicit state, deliberately NOT
+  // inferred from status + reservation policy — reserved gates release (no
+  // double-release on cancel), deducted gates deduction (no double-decrement
+  // of physical stock). Written only via the inventory hooks in orders.ts.
+  inventoryReserved    Boolean     @default(false)
+  inventoryDeducted    Boolean     @default(false)
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
 
