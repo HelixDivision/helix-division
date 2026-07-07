@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { auth } from "@/lib/auth";
 import { getEnabledProviders } from "@/lib/payments/provider";
 import { checkoutInformationSchema } from "@/lib/validations/checkout";
 import {
@@ -62,9 +63,16 @@ export async function createOrderAction(
     return { success: false, error: "Your cart is empty." };
   }
 
+  // Authoritative order ownership (Phase 8): if the buyer is authenticated,
+  // bind the order to their user id server-side — never trusted from client
+  // input, and never inferred by matching email for guests. A guest checkout
+  // (no session) leaves userId null.
+  const session = await auth();
+
   let orderId: string;
   try {
     const order = await createOrder({
+      userId: session?.user?.id ?? null,
       email: parsed.data.email,
       cartLines,
       shippingAddress: {

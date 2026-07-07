@@ -1,6 +1,6 @@
 # Roadmap
 
-Everything completed so far (Phases 1–7: engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration, authentication & authorization) is described in [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing), [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md), and (for Phase 7 specifically) [AUTH.md](./AUTH.md). This document covers what's left, in the order it's expected to be tackled. **Each phase starts only with explicit approval — don't chain into the next one just because a prior one finished.**
+Everything completed so far (Phases 1–8: engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration, authentication & authorization, customer accounts) is described in [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing), [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md), and (for Phase 7 specifically) [AUTH.md](./AUTH.md). This document covers what's left, in the order it's expected to be tackled. **Each phase starts only with explicit approval — don't chain into the next one just because a prior one finished.**
 
 **Reordered 2026-07-06 (twice)**: Real Prisma Integration was originally scheduled after Admin Dashboard, then moved to right after Customer Accounts, and finally moved again to run **before** Authentication — the earliest point it could go. Building Auth against real Prisma from the start avoided writing a throwaway in-memory `UserRepository` just to replace it a phase later, and Customer Accounts (order history, addresses) will land on real persistence immediately too.
 
@@ -8,13 +8,13 @@ Everything completed so far (Phases 1–7: engineering foundation, design system
 
 Login, Register, Forgot/Reset Password, Email Verification (tracked via `User.emailVerified`, not enforced), Auth.js Credentials + Prisma-adapter session management with explicit security config (session `maxAge`/rolling `updateAge`, `httpOnly`/`sameSite`/`secure` cookies), protected routes (`/account/*` any session, `/admin/*` `ADMIN` role, both in `src/proxy.ts`), a 12-character + complexity password policy, and rate-limiting/audit-logging **architecture** (interfaces + no-op/console implementations — no real limiter or sink yet). OAuth and MFA are **documented extension points only**, not implemented. Full detail in **[AUTH.md](./AUTH.md)**. `server/services/auth.ts` is scoped to authentication only — see `AUTH.md#auth-vs-future-user-service` for why Phase 8 gets its own `server/services/user.ts` rather than growing this file.
 
-## Phase 8 — Customer Accounts
+## Phase 8 — Customer Accounts — complete
 
-- Dashboard (replacing Phase 7's `/account` stub), Profile (owned by a new `server/services/user.ts` — see `AUTH.md#auth-vs-future-user-service`, don't add this to `auth.ts`), Address Book (CRUD on `Address`), Order History (`/account/orders`) and Order Details (`/account/orders/[id]`, reusing the confirmation page's order-summary component), Account Settings, Password Management (a logged-in "change password" flow — distinct from Phase 7's forgot/reset-password flow, though it can reuse `passwordSchema` from `lib/validations/auth.ts`).
-- Order history reads through `orders.ts`/`order-repository.ts` — same repository pattern, already Prisma-backed.
-- Guest→account cart/order association: decide at implementation time whether past guest orders can be claimed, or only orders placed while authenticated appear.
-- `AccountMenuTrigger.tsx` (Header's account icon, built in Phase 7) likely grows into a real dropdown here (name/email, order history shortcut, sign out inline) — Phase 7 kept it deliberately minimal (just a link to `/account` or `/login`).
-- Git checkpoint when Phase 8 is complete and verified — then stop for approval before Phase 9.
+- Dashboard (replaced Phase 7's `/account` stub with a sidebar shell), Profile (owned by the new `server/services/user.ts`), Address Book (CRUD on `Address`, ownership-scoped in-query), Order History (`/account/orders`) and Order Details (`/account/orders/[id]`, reusing the confirmation page's extracted `OrderSummaryCard`/`ShippingAddressCard`/`OrderStatusBadge`), Account Settings, and Password Management (a logged-in change-password flow — `changePassword` in `auth.ts`, reusing `passwordSchema` from `lib/validations/auth.ts`, distinct from Phase 7's forgot/reset flow).
+- Order history reads through `orders.ts` (`getOrdersForUser`/`getOrderForUser`) → `order-repository.ts`'s ownership-aware `findOrdersForUser`/`findOrderForUser` — ownership enforced in the query, not in the caller.
+- **Order ownership decision (settled)**: `Order.userId` is set server-side at checkout when the buyer is authenticated; guest orders are **not** auto-associated by email. Claiming past guest orders, if ever wanted, is a future **explicit ownership-verification workflow**, not automatic email matching.
+- `AccountMenuTrigger.tsx` grew into a real dropdown (name/email, dashboard + orders shortcuts, inline sign out).
+- Full detail in [ARCHITECTURE.md](./ARCHITECTURE.md#build-phasing) and [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md).
 
 ## Phase 9 — Admin Dashboard
 

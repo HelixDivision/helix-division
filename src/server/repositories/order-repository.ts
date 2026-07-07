@@ -57,6 +57,11 @@ export interface PaymentRecord {
 export interface OrderRecord {
   id: string;
   orderNumber: string;
+  // Authoritative owner. Set only when the order was placed by an
+  // authenticated customer (see server/actions/checkout.ts); null for guest
+  // orders. Order history is queried by this, never by email — see
+  // findOrdersForUser/findOrderForUser below (Phase 8 ownership model).
+  userId: string | null;
   email: string;
   status: OrderStatusValue;
   subtotal: number;
@@ -74,6 +79,7 @@ export interface OrderRecord {
 }
 
 export interface CreateOrderInput {
+  userId?: string | null;
   email: string;
   items: OrderItemRecord[];
   subtotal: number;
@@ -89,6 +95,13 @@ export interface CreateOrderInput {
 export interface OrderRepository {
   create(input: CreateOrderInput): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
+  // Ownership-aware reads for Customer Accounts (Phase 8). Ownership is
+  // enforced inside the query (a `userId` filter), never by fetching a record
+  // and checking it in the caller — so no page/action can accidentally leak
+  // another customer's order. findOrderForUser returns null (not another
+  // user's order) when orderId exists but belongs to someone else.
+  findOrdersForUser(userId: string): Promise<OrderRecord[]>;
+  findOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null>;
   attachPayment(orderId: string, payment: PaymentRecord): Promise<OrderRecord>;
   updateStatus(orderId: string, status: OrderStatusValue): Promise<OrderRecord>;
   updatePaymentStatus(
@@ -123,6 +136,7 @@ class InMemoryOrderRepository implements OrderRepository {
       createdAt: now,
       updatedAt: now,
       ...input,
+      userId: input.userId ?? null,
     };
     this.store.set(order.id, order);
     return order;
@@ -130,6 +144,17 @@ class InMemoryOrderRepository implements OrderRepository {
 
   async findById(orderId: string): Promise<OrderRecord | null> {
     return this.store.get(orderId) ?? null;
+  }
+
+  async findOrdersForUser(userId: string): Promise<OrderRecord[]> {
+    return [...this.store.values()]
+      .filter((order) => order.userId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async findOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null> {
+    const order = this.store.get(orderId);
+    return order && order.userId === userId ? order : null;
   }
 
   async attachPayment(orderId: string, payment: PaymentRecord): Promise<OrderRecord> {
@@ -251,6 +276,7 @@ interface PrismaPaymentRow {
 interface PrismaOrderRow {
   id: string;
   orderNumber: string;
+  userId: string | null;
   email: string;
   status: OrderStatusValue;
   subtotal: Prisma.Decimal;
@@ -281,6 +307,7 @@ function toOrderRecord(order: PrismaOrderRow): OrderRecord {
   return {
     id: order.id,
     orderNumber: order.orderNumber,
+    userId: order.userId,
     email: order.email,
     status: order.status,
     subtotal: Number(order.subtotal),
@@ -318,6 +345,7 @@ class PrismaOrderRepository implements OrderRepository {
     const order = await db.order.create({
       data: {
         orderNumber: generateOrderNumber(),
+        userId: input.userId ?? null,
         email: input.email,
         subtotal: input.subtotal,
         discount: input.discount,
@@ -345,6 +373,26 @@ class PrismaOrderRepository implements OrderRepository {
 
   async findById(orderId: string): Promise<OrderRecord | null> {
     const order = await db.order.findUnique({ where: { id: orderId }, include: ORDER_INCLUDE });
+    return order ? toOrderRecord(order) : null;
+  }
+
+  async findOrdersForUser(userId: string): Promise<OrderRecord[]> {
+    const orders = await db.order.findMany({
+      where: { userId },
+      include: ORDER_INCLUDE,
+      orderBy: { createdAt: "desc" },
+    });
+    return orders.map(toOrderRecord);
+  }
+
+  async findOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null> {
+    // Ownership is part of the WHERE clause — a non-matching userId yields
+    // null exactly as a missing id would, so callers can't distinguish
+    // "not yours" from "doesn't exist" (no ownership oracle).
+    const order = await db.order.findFirst({
+      where: { id: orderId, userId },
+      include: ORDER_INCLUDE,
+    });
     return order ? toOrderRecord(order) : null;
   }
 

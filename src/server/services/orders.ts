@@ -23,6 +23,12 @@ import type { CartLine } from "@/store/cart-store";
  */
 
 export interface CreateOrderParams {
+  // Authoritative owner — passed by the checkout action only when a session
+  // exists (see server/actions/checkout.ts). Guest checkouts leave it unset;
+  // we never associate an order to a user by matching email after the fact
+  // (that would be a Phase 8+ explicit "claim guest order" workflow, not
+  // automatic — see ROADMAP.md).
+  userId?: string | null;
   email: string;
   cartLines: CartLine[];
   shippingAddress: ShippingAddressRecord;
@@ -49,6 +55,7 @@ export async function createOrder(params: CreateOrderParams): Promise<OrderRecor
   const total = subtotal - discount + shippingCost + tax;
 
   const order = await orderRepository.create({
+    userId: params.userId ?? null,
     email: params.email,
     items,
     subtotal,
@@ -81,6 +88,25 @@ export async function createOrder(params: CreateOrderParams): Promise<OrderRecor
 
 export async function getOrder(orderId: string): Promise<OrderRecord | null> {
   return orderRepository.findById(orderId);
+}
+
+/**
+ * Customer Accounts (Phase 8) order-history reads. Ownership-scoped by design
+ * — these delegate to the repository's ownership-aware methods rather than
+ * fetching by id and checking `userId` here, so the "another user's order is
+ * indistinguishable from a missing one" guarantee lives in exactly one place
+ * (the repository query). Account pages call these; they never touch the
+ * repository or `getOrder`/`findById` directly.
+ */
+export async function getOrdersForUser(userId: string): Promise<OrderRecord[]> {
+  return orderRepository.findOrdersForUser(userId);
+}
+
+export async function getOrderForUser(
+  orderId: string,
+  userId: string,
+): Promise<OrderRecord | null> {
+  return orderRepository.findOrderForUser(orderId, userId);
 }
 
 export async function createPaymentForOrder(

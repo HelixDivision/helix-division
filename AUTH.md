@@ -10,9 +10,11 @@ How Helix Division's auth works — Auth.js v5 (beta) + Credentials + Prisma, bu
 - **Layering**: `lib/auth.ts`'s `authorize()` callback calls `verifyCredentials` from `src/server/services/auth.ts` — it does not query Prisma inline. This keeps the same "Server Actions/Auth.js callbacks → services → Prisma" layering used everywhere else in the app (see `ARCHITECTURE.md#service-layer-architecture`). `server/services/auth.ts` also owns registration, password reset, and email verification — see below.
 - **Password hashing**: `bcryptjs`, cost factor 10, same library already a dependency from the original Phase 1 scaffold.
 
-## Auth vs. Future User Service
+## Auth vs. User Service
 
-`server/services/auth.ts` is scoped **strictly to authentication**: register, verify credentials, password reset, email verification, audit logging. It does not and should not grow profile/preference/avatar/notification-settings logic — that belongs to a future `server/services/user.ts`, reserved for **Phase 8 (Customer Accounts)**. This boundary is intentional and pre-agreed so Phase 8 has a clear home for that logic from day one rather than it organically growing inside `auth.ts`. `PROJECT_CONTEXT.md` also documents this split.
+`server/services/auth.ts` is scoped **strictly to credentials**: register, verify credentials, password reset, email verification, **change password** (added Phase 8), audit logging. `server/services/user.ts` (built in Phase 8) owns **everything else about a user**: profile, addresses, and later preferences/avatar/notification settings.
+
+The boundary is deliberate and settled: **all password hashing/verification stays in `auth.ts`.** The authenticated change-password flow (`changePassword(userId, currentPassword, newPassword)`) lives here — not in `user.ts` — even though it's an account-settings feature, because `auth.ts` is the single home for bcrypt logic. `user.ts` must never hash or compare passwords, and `auth.ts` must never grow profile/address logic. `PROJECT_CONTEXT.md` §5 and `API.md` document the same split.
 
 ## Authorization Flow
 
@@ -45,7 +47,7 @@ These match what Auth.js already defaults to — they're set explicitly anyway s
 
 ## Password Policy
 
-Enforced via a shared `passwordSchema` in `src/lib/validations/auth.ts`, used by both registration and password reset: minimum 12 characters, at least one uppercase letter, one lowercase letter, one number, one special character. Each rule is its own zod `.regex()` check with its own message. Rather than depending on zod/React Hook Form to surface all four failures in one error message (uncertain without `criteriaMode: "all"` wiring), `RegisterForm`/`ResetPasswordForm` render a **live requirements checklist** that checks the in-progress password against each rule as the user types — a more reliable and more standard UX pattern than a post-submit error list.
+Enforced via a shared `passwordSchema` in `src/lib/validations/auth.ts`, used by registration, password reset, and the Phase 8 authenticated change-password flow (via `changePasswordSchema` in `lib/validations/account.ts`, which reuses it): minimum 12 characters, at least one uppercase letter, one lowercase letter, one number, one special character. Each rule is its own zod `.regex()` check with its own message. Rather than depending on zod/React Hook Form to surface all four failures in one error message (uncertain without `criteriaMode: "all"` wiring), `RegisterForm`/`ResetPasswordForm` render a **live requirements checklist** that checks the in-progress password against each rule as the user types — a more reliable and more standard UX pattern than a post-submit error list.
 
 ## Password Reset Flow
 
@@ -71,7 +73,7 @@ Shares the same `VerificationToken` table and `issueToken`/`consumeToken` helper
 
 ## Audit Events
 
-`src/server/services/auth-audit.ts` defines `AuthAuditService` + `ConsoleAuditService` (same pattern again — console today, a database table or analytics sink later without touching call sites). Events logged: `registration`, `login_success`, `login_failure`, `password_reset_requested`, `password_reset_completed`, `email_verified`, `logout`.
+`src/server/services/auth-audit.ts` defines `AuthAuditService` + `ConsoleAuditService` (same pattern again — console today, a database table or analytics sink later without touching call sites). Events logged: `registration`, `login_success`, `login_failure`, `password_reset_requested`, `password_reset_completed`, `password_changed` (added Phase 8 — the authenticated change-password flow), `email_verified`, `logout`.
 
 Wiring:
 - `login_success`/`logout` — via Auth.js's own `events.signIn`/`events.signOut` callbacks in `lib/auth.ts` (cleanest — no custom plumbing needed).

@@ -58,6 +58,8 @@ Built on shadcn/ui primitives, styled exclusively via the tokens above.
 - **Pagination** (`shop/Pagination.tsx`, Phase 4) — page-number + prev/next control for the shop catalog. Compact flex layout; no responsive breakpoint prefixes needed today since it's a single-row control at all widths, but revisit if it grows a page-size selector.
 - **Breadcrumbs** (`shop/Breadcrumbs.tsx`, Phase 4) — text-link trail (Home / Shop / Category / Product), `foreground.muted` with `accent.crimson` on the active/final crumb.
 - **Checkout Stepper** (inline in `checkout/CheckoutWizard.tsx`, Phase 5) — 2-step indicator (Information → Review), same crimson-active/muted-inactive convention as Breadcrumbs rather than a new token set.
+- **Order Status Badge** (`checkout/OrderStatusBadge.tsx`, Phase 8) — maps each `OrderStatus` to a label + `Badge` variant (`outline`/`secondary`/`default`/`destructive`), shared by the checkout confirmation, order history, and order detail views so status wording/colour never drifts. Paired with the extracted `OrderSummaryCard`/`ShippingAddressCard` presentational components (also Phase 8), reused across checkout and account.
+- **Account surfaces** (`app/(account)/account/*` + `components/account/*`, Phase 8) — introduce **no new primitives or tokens**: the dashboard shell, sidebar `AccountNav` (crimson-active/muted convention), address-book dialogs, and forms are all compositions of the existing `Card`/`Field`/`Dialog`/`DropdownMenu`/`Button`/`TextField`/`PasswordField` set. The header account control (`AccountMenuTrigger`) uses the existing `DropdownMenu` primitive — note its identity header is a plain block, not `DropdownMenuLabel` (Base UI's `GroupLabel` requires a `Menu.Group` ancestor).
 
 ## Motion System
 

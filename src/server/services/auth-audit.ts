@@ -9,6 +9,7 @@ export type AuthAuditEvent =
   | "login_failure"
   | "password_reset_requested"
   | "password_reset_completed"
+  | "password_changed"
   | "email_verified"
   | "logout";
 

@@ -103,13 +103,20 @@ Defined in `src/server/repositories/order-repository.ts`. **Only `src/server/ser
 
 ```ts
 interface OrderRepository {
-  create(input: CreateOrderInput): Promise<OrderRecord>;
+  create(input: CreateOrderInput): Promise<OrderRecord>; // CreateOrderInput.userId? — set when the buyer is authenticated
   findById(orderId: string): Promise<OrderRecord | null>;
+  // Ownership-aware reads (Phase 8). Ownership is enforced inside the query
+  // (a userId filter), so a non-owned order is indistinguishable from a
+  // missing one — no caller-side ownership check, no ownership oracle.
+  findOrdersForUser(userId: string): Promise<OrderRecord[]>;
+  findOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null>;
   attachPayment(orderId: string, payment: PaymentRecord): Promise<OrderRecord>;
   updateStatus(orderId: string, status: OrderStatus): Promise<OrderRecord>;
   updatePaymentStatus(orderId: string, status: PaymentStatus): Promise<OrderRecord>;
 }
 ```
+
+**Ownership rule**: prefer the ownership-aware methods over `findById` for any customer-facing read. `findById` (no ownership filter) is for internal/checkout flows only — never expose it to an account page. `findOrdersForUser`/`findOrderForUser` are the account surface.
 
 `PrismaOrderRepository` is the live implementation as of Real Prisma Integration — it maps `OrderRecord`/`OrderItemRecord`/`PaymentRecord` to/from Prisma's generated `Order`/`OrderItem`/`Payment` models at this file's boundary only (`Decimal↔number`, `PaymentMethod`/`PaymentStatus` enum casing between lowercase-hyphenated provider ids and Prisma's uppercase-underscored enum values). `InMemoryOrderRepository` (HMR-safe `Map` on `globalThis`) is kept in the same file for reference but isn't exported/used. No file above the repository needed to change when the swap happened — that was the point of building it as an interface from Phase 5.
 
@@ -160,10 +167,28 @@ interface AnalyticsService {
 `orders.ts` orchestration entry points (the only functions checkout Server Actions call):
 
 ```ts
-createOrder(input: CreateOrderInput): Promise<OrderRecord>;
+createOrder(input: CreateOrderInput): Promise<OrderRecord>; // input.userId set from session when authenticated
 createPaymentForOrder(orderId: string, providerId: string): Promise<OrderRecord>;
 confirmPaymentSubmitted(orderId: string, providerId: string): Promise<OrderRecord>;
+getOrder(orderId: string): Promise<OrderRecord | null>;                      // internal/checkout — no ownership filter
+getOrdersForUser(userId: string): Promise<OrderRecord[]>;                    // account order history (Phase 8)
+getOrderForUser(orderId: string, userId: string): Promise<OrderRecord | null>; // account order detail (Phase 8)
 ```
+
+## User Service (`src/server/services/user.ts`)
+
+Account-management service added in Phase 8 — the counterpart to `auth.ts`, owning **everything about a user that isn't credentials** (profile, addresses; later preferences/avatar/notification settings). Called only by `server/actions/account.ts`, which re-checks the session first. Never hashes/verifies passwords — the authenticated change-password flow is `auth.ts`'s `changePassword` (see [AUTH.md](./AUTH.md#auth-vs-future-user-service)).
+
+```ts
+getProfile(userId: string): Promise<ProfileView | null>;
+updateProfile(userId: string, input: { name?: string | null; email: string }): Promise<ProfileView>;
+listAddresses(userId: string): Promise<Address[]>;
+createAddress(userId: string, input: AddressInput): Promise<Address>;
+updateAddress(addressId: string, userId: string, input: AddressInput): Promise<Address>; // ownership in WHERE
+deleteAddress(addressId: string, userId: string): Promise<void>;                          // ownership in WHERE
+```
+
+`changePassword` (in `auth.ts`, not here): `changePassword(userId, currentPassword, newPassword): Promise<void>` — verifies the current password with bcrypt, updates the hash, logs a `password_changed` audit event.
 
 ## Catalog Read Functions
 
@@ -193,6 +218,8 @@ Actions validate input via `lib/validations` (zod) and delegate to `server/servi
 |---|---|---|
 | `checkout.ts` — `createOrderAction`, `confirmPaymentSentAction` | `createOrderAction` validates checkout form data via `lib/validations/checkout.ts`, calls `orders.createOrder` + `orders.createPaymentForOrder`, returns the new `orderId`. `confirmPaymentSentAction` calls `orders.confirmPaymentSubmitted`. | **Built** — Phase 5 |
 | `catalog.ts` — `getRecentlyViewedProductsAction(entries)` | Resolves `RecentlyViewed.tsx`'s localStorage-only `{categorySlug, productSlug}[]` entries into full product data with each product's category name already joined in — the one place a client component's catalog need can't be satisfied by a prop, since the list itself is only known after client-side hydration. | **Built** — Real Prisma Integration |
+| `auth.ts` — `registerAction`, `requestPasswordResetAction`, `resetPasswordAction`, `verifyEmailAction` | Register/reset/verify flows; validate via `lib/validations/auth.ts`, delegate to `server/services/auth.ts`, rate-limited at entry. | **Built** — Phase 7 (see [AUTH.md](./AUTH.md)) |
+| `account.ts` — `updateProfileAction`, `createAddressAction`, `updateAddressAction`, `deleteAddressAction`, `changePasswordAction` | Customer-account mutations. **Every action re-checks `auth()`** and acts only on the caller's own data (proxy guard is not trusted alone); validate via `lib/validations/account.ts`, delegate to `server/services/user.ts` (profile/addresses) or `auth.ts` (`changePassword`). | **Built** — Phase 8 |
 | Cart mutations | Cart has no Server Action layer — it's pure client state (`useCartStore`, Zustand + localStorage persist), since there's nothing server-side to validate or persist for an anonymous, pre-checkout cart. | **By design, not a gap** |
 | `admin-products.ts`, `admin-orders.ts`, `admin-payments.ts` | Admin CRUD/status-transition actions, role-checked in the action itself in addition to the layout guard | **Not built** — see [ROADMAP.md](./ROADMAP.md) |
 
@@ -213,4 +240,4 @@ Today's homepage/FAQ copy is hardcoded directly in `components/home/*` — pages
 
 ## Auth
 
-Not built yet. Planned: Auth.js (`lib/auth.ts`) issues sessions carrying `user.id` and `user.role` (`CUSTOMER` | `ADMIN`). `(admin)` routes will be gated in `src/proxy.ts` (Next.js 16's `middleware` → `proxy` file convention, Node.js runtime by default) + the admin layout by checking `role === 'ADMIN'`; sensitive admin Server Actions should re-check role server-side rather than trusting the proxy/layout guard alone. See [ROADMAP.md](./ROADMAP.md) — Authentication phase.
+**Built** — Phase 7. Auth.js v5 (`lib/auth.ts`) issues JWT sessions carrying `user.id` and `user.role` (`CUSTOMER` | `ADMIN`). `src/proxy.ts` (Next.js 16's `middleware` → `proxy` convention, Node.js runtime) gates `/account/*` on any session and `/admin/*` on `role === 'ADMIN'`; the `(account)/account` layout re-checks server-side, and every account Server Action re-checks `auth()` — sensitive mutations never trust the proxy/layout guard alone. `server/services/auth.ts` owns register/verify/reset/verify-email/change-password + audit; the full contract and flows are in **[AUTH.md](./AUTH.md)**. Admin Server Actions (Phase 9) will re-check `role === 'ADMIN'` server-side by the same rule.

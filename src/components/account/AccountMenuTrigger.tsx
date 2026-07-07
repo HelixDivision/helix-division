@@ -1,32 +1,80 @@
 "use client";
 
-import { User } from "lucide-react";
+import { LogOut, Package, User, UserRound } from "lucide-react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 /**
- * Replaces Header.tsx's previously-static, non-functional Account icon
- * button. Links to `/account` when signed in, `/login` otherwise — a full
- * account dropdown (name, order history shortcut, sign out inline) is
- * Phase 8's concern; this just makes the existing icon functional and
- * session-aware.
+ * Header account control. When signed out it's a plain link to `/login`; when
+ * signed in it opens a dropdown (identity + shortcuts + inline sign out) —
+ * Phase 8's promised upgrade of Phase 7's link-only stub. Session-aware via
+ * useSession, so it reflects auth state without a page reload.
  */
 export function AccountMenuTrigger() {
-  const { status } = useSession();
-  const isAuthenticated = status === "authenticated";
+  const { data: session, status } = useSession();
+
+  if (status !== "authenticated") {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Sign in"
+        render={<Link href="/login" />}
+        nativeButton={false}
+        className="hidden sm:inline-flex"
+      >
+        <User />
+      </Button>
+    );
+  }
+
+  const user = session.user;
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label={isAuthenticated ? "Account" : "Sign in"}
-      render={<Link href={isAuthenticated ? "/account" : "/login"} />}
-      nativeButton={false}
-      className="hidden sm:inline-flex"
-    >
-      <User />
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Account menu"
+            className="hidden sm:inline-flex"
+          />
+        }
+      >
+        <User />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-56">
+        {/* Plain identity block — not a DropdownMenuLabel (Base UI's GroupLabel
+            requires a Menu.Group ancestor and would throw here). */}
+        <div className="flex flex-col gap-0.5 px-1.5 py-1">
+          {user.name && <span className="text-foreground-primary text-sm">{user.name}</span>}
+          <span className="text-foreground-muted truncate text-xs">{user.email}</span>
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem render={<Link href="/account" />}>
+          <UserRound />
+          Dashboard
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/account/orders" />}>
+          <Package />
+          Orders
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={() => signOut({ redirectTo: "/" })}>
+          <LogOut />
+          Sign Out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

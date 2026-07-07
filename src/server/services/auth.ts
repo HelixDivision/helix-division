@@ -160,6 +160,35 @@ export async function resetPassword(token: string, newPassword: string): Promise
   authAuditService.log("password_reset_completed", { email });
 }
 
+/**
+ * Authenticated "change password" (Phase 8, Account Settings) — distinct from
+ * the token-based forgot/reset flow above, but kept here because all password
+ * hashing/verification lives in this file; `server/services/user.ts` owns
+ * everything *except* credentials (see AUTH.md#auth-vs-future-user-service).
+ * The caller (server/actions/account.ts) is responsible for confirming the
+ * session belongs to `userId` before calling this.
+ */
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user?.passwordHash) {
+    throw new Error("This account has no password set.");
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) {
+    throw new Error("Your current password is incorrect.");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await db.user.update({ where: { id: userId }, data: { passwordHash } });
+
+  authAuditService.log("password_changed", { email: user.email, userId });
+}
+
 export async function verifyEmail(token: string): Promise<void> {
   const email = await consumeToken(token, "EMAIL_VERIFICATION");
   if (!email) {

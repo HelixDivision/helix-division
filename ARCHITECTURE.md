@@ -2,7 +2,7 @@
 
 Full system architecture for Helix Division. This document is the long-form reference; [README.md](./README.md) is the quick-start, [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) is the onboarding doc for a new session, [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) covers visual tokens/components, [PROJECT_RULES.md](./PROJECT_RULES.md) covers engineering conventions, [API.md](./API.md) covers Server Actions/Repository/Service/PaymentProvider contracts, [ROADMAP.md](./ROADMAP.md) covers everything not yet built.
 
-**Status**: Phases 1–6 complete (engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration). A real Postgres database (hosted on Neon) is now live and is the single source of truth for the catalog and orders — see [§ Data & Persistence](#data--persistence-a-real-database). Next phase is Authentication & Authorization; see [ROADMAP.md](./ROADMAP.md) for the full remaining order (reordered so Real Prisma Integration lands before Auth/Accounts/Admin, so none of those get built against a throwaway in-memory store).
+**Status**: Phases 1–8 complete (engineering foundation, design system, homepage, shop catalog, cart & checkout, real Prisma integration, authentication & authorization, customer accounts). A real Postgres database (hosted on Neon) is now live and is the single source of truth for the catalog and orders — see [§ Data & Persistence](#data--persistence-a-real-database). Next phase is the Admin Dashboard; see [ROADMAP.md](./ROADMAP.md) for the full remaining order (reordered so Real Prisma Integration lands before Auth/Accounts/Admin, so none of those get built against a throwaway in-memory store).
 
 ## Guiding Constraints
 
@@ -23,7 +23,9 @@ helix-division/
 │   │   │   ├── shop/{page.tsx, [category]/page.tsx, [category]/[slug]/page.tsx}   — built, Phase 4
 │   │   │   ├── cart/page.tsx                                                       — built, Phase 5
 │   │   │   └── checkout/{page.tsx, payment/[orderId]/page.tsx, confirmation/[orderId]/page.tsx}  — built, Phase 5
-│   │   ├── (account)/{login, register, account/{page.tsx, addresses, orders/[id]}}  — not built, see ROADMAP.md
+│   │   ├── (account)/
+│   │   │   ├── (auth-forms)/{login, register, forgot-password, reset-password/[token], verify-email/[token]}  — built, Phase 7
+│   │   │   └── account/{layout.tsx, page.tsx, orders/{page.tsx,[id]/page.tsx}, addresses/, profile/, settings/}  — built, Phase 8
 │   │   ├── (admin)/admin/{...16 sub-modules...}                                     — not built, see ROADMAP.md
 │   │   ├── api/{webhooks/{now-payments,coinbase-commerce,btcpay,stripe}/route.ts, auth/[...nextauth]/route.ts}  — not built
 │   │   └── layout.tsx, globals.css, sitemap.ts, robots.ts
@@ -38,8 +40,8 @@ helix-division/
 │   │   ├── validations/checkout.ts # zod schemas
 │   │   └── payments/{provider.ts, types.ts, provider-labels.ts, adapters/}
 │   ├── server/
-│   │   ├── actions/{checkout.ts, catalog.ts}   # "use server" — createOrderAction, confirmPaymentSentAction, getRecentlyViewedProductsAction
-│   │   ├── services/               # catalog.ts, orders.ts, shipping.ts, tax.ts, discounts.ts, inventory.ts, notifications.ts
+│   │   ├── actions/{checkout.ts, catalog.ts, auth.ts, account.ts}   # "use server" — order/catalog + auth (register/reset/verify) + account (profile/address/password) actions
+│   │   ├── services/               # catalog.ts, orders.ts, shipping.ts, tax.ts, discounts.ts, inventory.ts, notifications.ts, auth.ts (auth only), user.ts (profile/addresses), auth-audit.ts, rate-limit.ts
 │   │   └── repositories/order-repository.ts   # PrismaOrderRepository — the ONLY file touching order storage directly
 │   ├── store/{cart-store.ts, ui-store.ts, recently-viewed-store.ts}
 │   ├── types/{catalog.ts, next-auth.d.ts, ...}
@@ -59,7 +61,8 @@ helix-division/
 | `/checkout` | Information → Review 2-step wizard | **Built** — Phase 5 |
 | `/checkout/payment/[orderId]` | Provider-specific payment instructions or an "unavailable" state | **Built** — Phase 5 |
 | `/checkout/confirmation/[orderId]` | Order summary, clears cart | **Built** — Phase 5 |
-| `/login`, `/register`, `/account/*` | Customer auth area | **Not built** — see ROADMAP.md |
+| `/login`, `/register`, `/forgot-password`, `/reset-password/[token]`, `/verify-email/[token]` | Customer auth area | **Built** — Phase 7 (see AUTH.md) |
+| `/account`, `/account/orders`, `/account/orders/[id]`, `/account/addresses`, `/account/profile`, `/account/settings` | Customer dashboard — session-gated in `src/proxy.ts` + re-checked in the `(account)/account` layout | **Built** — Phase 8 |
 | `/admin/*` | Role-gated (`session.user.role === 'ADMIN'`, enforced in `(admin)` layout + `src/proxy.ts`) | **Not built** — see ROADMAP.md |
 
 Route groups `(marketing)`, `(shop)`, `(account)`, `(admin)` share layouts without affecting URL paths.
@@ -82,7 +85,9 @@ Order data is transactional (create/read/update), so it was built from Phase 5 a
 ```
 src/server/repositories/order-repository.ts
 ├── OrderRecord / OrderItemRecord / PaymentRecord   — types mirroring prisma/schema.prisma
-├── OrderRepository interface: create, findById, attachPayment, updateStatus, updatePaymentStatus
+│                                                     (OrderRecord.userId: authoritative owner, null for guests)
+├── OrderRepository interface: create, findById, findOrdersForUser, findOrderForUser,
+│                              attachPayment, updateStatus, updatePaymentStatus
 ├── InMemoryOrderRepository implements OrderRepository   — kept for reference, not wired up
 └── PrismaOrderRepository implements OrderRepository     — the live implementation
     — maps OrderRecord/OrderItemRecord/PaymentRecord to/from Prisma's Order/OrderItem/Payment
@@ -94,6 +99,8 @@ export const orderRepository: OrderRepository = new PrismaOrderRepository();
 ```
 
 **Rule**: `orderRepository` (whichever implementation is exported) is touched only inside `order-repository.ts` itself. **Only `src/server/services/orders.ts` imports `orderRepository`.** No Server Action, page, or component may import the repository directly.
+
+**Order ownership (Phase 8)**: `Order.userId` is the authoritative owner, set at checkout **only when the buyer is authenticated** (`createOrderAction` reads the session server-side; it's never taken from client input, and a guest order's `userId` stays null). Order history is queried by `userId`, never by matching email — the account pages call `orders.ts`'s `getOrdersForUser(userId)` / `getOrderForUser(orderId, userId)`, which delegate to the repository's ownership-aware `findOrdersForUser`/`findOrderForUser`. Those enforce ownership **inside the query** (a `userId` filter), so an order that isn't yours is indistinguishable from one that doesn't exist (a 404, never a leak). Claiming past *guest* orders by email is deliberately **not** automatic — if ever added, it's an explicit ownership-verification workflow, not email matching (see [ROADMAP.md](./ROADMAP.md)).
 
 ## Service Layer Architecture
 
@@ -132,10 +139,13 @@ Nothing skips a layer: components never call a service directly, and services ne
 - **`notifications.ts`** — `NotificationService { sendOrderConfirmation(order), sendPaymentReceived(order), sendShipmentNotification(order) }`. `ConsoleNotificationService` logs a structured message per call today (placeholder for a real email provider). Wired: `sendOrderConfirmation` after order creation, `sendPaymentReceived` after "I've sent the transfer."
 - **`lib/analytics.ts`** — deliberately in `lib/`, not `server/services/`, since events fire from both client components and Server Actions. `AnalyticsService.track(event, payload?)` where `event ∈ { product_viewed, add_to_cart, begin_checkout, place_order, payment_submitted }`. `ConsoleAnalyticsService` logs today. Wired at PDP render, `AddToCartButton`/`ProductCardLink`, `/checkout` mount, `createOrder`, `confirmPaymentSentAction`.
 
-`orders.ts` exposes three orchestration entry points, each composing the pieces above:
-- `createOrder(...)` — pricing pipeline → `orderRepository.create(...)` → conditional `reserveInventory` (only if the provider's policy is `"reserve-on-order"`) → `sendOrderConfirmation` → `track("place_order")`.
+`orders.ts` exposes these orchestration entry points, each composing the pieces above:
+- `createOrder(...)` — pricing pipeline → `orderRepository.create(...)` (with `userId` when the buyer is authenticated) → conditional `reserveInventory` (only if the provider's policy is `"reserve-on-order"`) → `sendOrderConfirmation` → `track("place_order")`.
 - `createPaymentForOrder(orderId, providerId)` — loads the order, calls the real `getProvider(providerId).createPaymentRequest(...)` from `lib/payments/provider.ts`, `orderRepository.attachPayment(...)`, status → `AWAITING_PAYMENT`.
 - `confirmPaymentSubmitted(orderId, providerId)` — `updatePaymentStatus`, status → `PAYMENT_SUBMITTED`, `sendPaymentReceived`; if the provider's policy is `"reserve-on-payment-confirmed"`, `reserveInventory` runs here instead.
+- `getOrder(orderId)` / `getOrdersForUser(userId)` / `getOrderForUser(orderId, userId)` — reads. The latter two are the Customer Accounts (Phase 8) ownership-scoped history/detail reads; account pages call these, never `getOrder`/the repository directly.
+
+**`server/services/user.ts`** (Phase 8) is the account-management counterpart to `auth.ts`, split along the boundary in [AUTH.md](./AUTH.md#auth-vs-future-user-service): it owns **everything about a user that isn't credentials** — profile (`getProfile`/`updateProfile`) and address book (`listAddresses`/`createAddress`/`updateAddress`/`deleteAddress`), and later preferences/avatar/notification settings. It never hashes or verifies passwords; the authenticated change-password flow lives in `auth.ts`'s `changePassword` (all password logic stays in one file). Every read/write is scoped to a `userId` the calling Server Action (`server/actions/account.ts`) has already authenticated, and address mutations enforce ownership in the `WHERE` clause (same "no ownership oracle" posture as the order reads).
 
 ## Payment Architecture
 
@@ -182,7 +192,7 @@ A Postgres database (hosted on Neon) is live and is the single source of truth f
 3. Customer confirms ("I've sent the transfer") → `confirmPaymentSentAction` → `PAYMENT_SUBMITTED`; for `manual`-style providers, inventory reservation happens here instead of step 1.
 4. A future admin action (see [ROADMAP.md](./ROADMAP.md) — Admin Dashboard) reconciles and moves the order to `PAYMENT_CONFIRMED` → `PROCESSING`; webhook-capable providers (NOW Payments, Coinbase Commerce, Bitcoin) would do this automatically once implemented instead of requiring a manual admin step.
 
-Every order carries a `researchAcknowledged` boolean (required checkbox at checkout) — same compliance requirement will apply to account registration once Authentication exists (`User.researchAcknowledgedAt`).
+Every order carries a `researchAcknowledged` boolean (required checkbox at checkout); registration sets the same compliance field on the user (`User.researchAcknowledgedAt`, since Phase 7). An order placed by an authenticated customer also carries their `userId` (set server-side in `createOrderAction` from the session — see [§ Repository Architecture](#repository-architecture)); guest orders leave it null and are not retroactively linked by email.
 
 ## Admin Module Map
 
@@ -223,4 +233,6 @@ Marketing content (Home copy, About, FAQ, Research articles, Blog, Legal/Policie
 - **Phase 4** — shop catalog: `/shop`, category pages, PDP, static catalog data layer.
 - **Phase 5** — cart & checkout: Cart Drawer/Page, full checkout wizard, Order Repository, shipping/tax/discount/inventory/notification/analytics services, provider-agnostic payment integration, production payment-provider trio decided (Wise/NOW Payments/Coinbase Commerce).
 - **Phase 6** — real Prisma integration: reordered ahead of Authentication/Accounts (see [ROADMAP.md](./ROADMAP.md)'s 2026-07-06 note) so those phases build on real persistence from day one instead of a throwaway in-memory store. Neon Postgres provisioned, first migration run, `PrismaOrderRepository` and Prisma-backed `lib/catalog.ts` are now the live implementations, `prisma/seed.ts` bootstraps a fresh database from the old static catalog data, `db:seed`/`db:reset` dev workflow scripts added.
-- **Phase 7+** — see [ROADMAP.md](./ROADMAP.md): Authentication & Authorization, Customer Accounts, Admin Dashboard, CMS, real payment-provider integrations, production hardening, deployment.
+- **Phase 7** — authentication & authorization: Auth.js v5 Credentials + Prisma adapter (JWT sessions), login/register/forgot-reset/verify-email, `proxy.ts` route gating (`/account/*` any session, `/admin/*` `ADMIN`), 12-char password policy, rate-limit/audit architecture. Full detail in [AUTH.md](./AUTH.md).
+- **Phase 8** — customer accounts: `/account` dashboard (replacing Phase 7's stub), order history + ownership-scoped order detail, address book CRUD, profile, and an authenticated change-password flow. New `server/services/user.ts` owns profile/addresses (the reserved counterpart to `auth.ts`); orders gain authoritative `userId` ownership (set at checkout when authenticated, never inferred from email); the order repository gained ownership-aware reads. See [§ Repository Architecture](#repository-architecture) and [§ Service Layer Architecture](#service-layer-architecture).
+- **Phase 9+** — see [ROADMAP.md](./ROADMAP.md): Admin Dashboard, CMS, real payment-provider integrations, production hardening, deployment.
