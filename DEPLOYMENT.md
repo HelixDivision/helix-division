@@ -8,9 +8,9 @@ Status legend: **[app-ready]** = code is done, just needs configuring · **[acti
 
 ## 1. Hosting & Build
 
-- **[app-ready]** Framework: Next.js 16 App Router. `npm run build` passes (49 routes). No build config changes needed for Vercel — it auto-detects Next.js.
+- **[app-ready]** Framework: Next.js 16 App Router. `npm run build` passes (verified 2026-07-10, exit 0). No build config changes needed for Vercel — it auto-detects Next.js.
 - **[action]** Create a Vercel project from the Git repo, set the **Production branch**, and add the environment variables below. Vercel runs `next build` automatically.
-- **[app-ready]** `prisma generate` runs via the `postinstall`/build step; the Prisma client output is gitignored and regenerated on deploy. Confirm the build command includes `prisma generate` (add `"postinstall": "prisma generate"` if not already effective in CI).
+- **[app-ready]** The generated Prisma client (`src/generated/prisma/`) is **committed to the repo** (as of the `Fix Prisma client for Vercel deployment` commit), so a Vercel build uses the vendored client and does **not** need a `prisma generate` step — there is intentionally no `postinstall: prisma generate`. **Maintenance note:** whenever `prisma/schema.prisma` changes, run `npm run db:generate` and **commit** the regenerated `src/generated/prisma/` output before deploying, or the deployed client will drift from the schema. (If you'd rather regenerate on deploy than vendor the client, re-add the directory to `.gitignore` and add `"postinstall": "prisma generate"` — pick one strategy, not both.)
 
 ## 2. DNS
 

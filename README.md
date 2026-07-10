@@ -57,15 +57,15 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contributor workflow (bran
 
 ```
 src/
-├── app/            # routes: (marketing) (shop) (account) (admin) api — shop/cart/checkout built, account/admin not started
+├── app/            # routes: (marketing) (shop) (account) (admin) api — all built through Phase 9.5 + Prototype Launch (marketing/shop/cart/checkout/account/admin)
 ├── branding/       # brand tokens, logo, icons, illustrations — never mixed into components/
 ├── components/     # ui (shadcn) · layout · home · shop · cart · checkout · account · admin · motion
 ├── hooks/          # useCart, useCheckout, useBreakpoint, useScroll, useTheme, useDisclosure, useDebounce
 ├── lib/            # db, payments/ (adapter interface + adapters), catalog.ts (Prisma-backed, server-only),
 │                   # shipping-config.ts, analytics.ts, data/catalog-data.ts (bootstrap-only), validations/, auth, seo, utils
 ├── server/
-│   ├── actions/    # Server Actions (checkout.ts, catalog.ts)
-│   ├── services/   # business logic: catalog, orders, shipping, tax, discounts, inventory, notifications
+│   ├── actions/    # Server Actions: checkout, catalog, auth, account, admin-*, newsletter, contact, shared
+│   ├── services/   # business logic: catalog, orders, shipping, tax, discounts, inventory (real), notifications, auth, user, media, articles, newsletters, analytics-*, admin-*
 │   └── repositories/ # order-repository.ts — PrismaOrderRepository is live, the only file touching order storage directly
 ├── store/          # Zustand: cart-store, ui-store, recently-viewed-store
 ├── types/
@@ -93,6 +93,8 @@ prisma/
 | `NEXT_PUBLIC_GA_ID` | Google Analytics 4 measurement id (optional) — the GA script only renders when set; first-party analytics work regardless |
 
 `DATABASE_URL` is consumed both by `prisma.config.ts` (CLI/migrations) and by `src/lib/db.ts`, which wraps it in a `@prisma/adapter-pg` driver adapter — Prisma 7's client generator requires an explicit driver adapter rather than reading the env var itself (see ARCHITECTURE.md). A reachable database is required to run `npm run dev` — the catalog and orders are both Prisma-backed.
+
+**Prisma client is committed, not gitignored.** The generated client (`src/generated/prisma/`) is checked into the repo so Vercel builds don't have to regenerate it (there is no `postinstall: prisma generate`). After changing `prisma/schema.prisma`, run `npm run db:generate` **and commit the regenerated `src/generated/prisma/` output** — otherwise the committed client drifts from the schema.
 
 ## Current Status
 
