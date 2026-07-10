@@ -1,6 +1,7 @@
 import type { ContentStatus, Prisma } from "@/generated/prisma/client";
 import type { ContentBody } from "@/lib/content/blocks";
 import { db } from "@/lib/db";
+import { notificationService } from "@/server/services/notifications";
 
 /**
  * Newsletter CMS service (Phase 9.5). Same block-body/attachments/publish
@@ -138,6 +139,10 @@ export async function subscribeToNewsletter(email: string, source?: string): Pro
   const existing = await db.newsletterSubscriber.findUnique({ where: { email } });
   if (existing) throw new DuplicateSubscriberError();
   await db.newsletterSubscriber.create({ data: { email, source: source ?? null } });
+  // Best-effort emails (sendEmail never throws — a delivery failure must not undo
+  // a successful subscription): a branded welcome to the subscriber and an
+  // internal new-subscriber notification to support.
+  await notificationService.sendNewsletterConfirmation({ email, source: source ?? null });
 }
 
 export async function getSubscriberCount(): Promise<number> {

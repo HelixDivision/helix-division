@@ -27,6 +27,19 @@ const envSchema = z.object({
   // SiteSetting takes precedence; this is the default when unset.
   CONTACT_RECIPIENT_EMAIL: z.string().optional(),
 
+  // --- Transactional email (Resend) ---
+  // API key for the Resend SDK. NEVER hardcoded — supplied via env only. When
+  // set, transactional emails send for real; when unset, sends are logged to the
+  // server console (dev fallback) so the app runs locally without a key.
+  RESEND_API_KEY: z.string().optional(),
+  // "From" address for all outbound mail. Must be on a domain verified in Resend
+  // (helixdivision.com). Defaults to "Helix Division <support@helixdivision.com>"
+  // in code when unset.
+  EMAIL_FROM: z.string().optional(),
+  // Recipient for internal/staff notifications (new orders, contact submissions,
+  // new newsletter subscribers). Defaults to support@helixdivision.com when unset.
+  SUPPORT_EMAIL: z.string().optional(),
+
   // Decided production providers: wise, now-payments, coinbase-commerce —
   // see ARCHITECTURE.md#payment-architecture. bitcoin/stripe/authorize
   // remain registered as optional/example adapters, not defaults.

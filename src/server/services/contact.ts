@@ -27,6 +27,9 @@ export async function createContactMessage(input: ContactInput): Promise<void> {
     subject: input.subject,
     message: input.message,
     id: saved.id,
+    date: saved.createdAt,
+    // IP / User-Agent are not captured for contact submissions today; the email
+    // template includes them only when present.
   });
 }
 

@@ -94,7 +94,7 @@ export async function createOrder(params: CreateOrderParams): Promise<OrderRecor
     await orderRepository.updateInventoryFlags(order.id, { reserved: true });
   }
 
-  await notificationService.sendOrderConfirmation(order);
+  await notificationService.sendOrderConfirmation(order, { providerId: params.providerId });
   analyticsService.track("place_order", {
     orderId: order.id,
     orderNumber: order.orderNumber,
