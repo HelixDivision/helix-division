@@ -63,9 +63,9 @@ Shares the same `VerificationToken` table and `issueToken`/`consumeToken` helper
 
 **Verification is tracked, not enforced** — login and checkout are not gated on `emailVerified`. This keeps scope tight for this phase and avoids locking out testing/reviewer sessions; revisit if stricter gating is wanted later (the natural place to add it would be inside `verifyCredentials`, checking `user.emailVerified` before returning success).
 
-## No Real Email Sending Yet
+## Real Email Sending (Resend)
 
-`NotificationService` (`src/server/services/notifications.ts`) — the same "interface today, real provider later" pattern already used for order confirmations — gained `sendEmailVerification`/`sendPasswordReset` methods. `ConsoleNotificationService` logs the constructed link to the server console; nothing above this layer needs to change when a real email provider (Resend/Postmark/SES — undecided, see `ROADMAP.md`) is wired in.
+`NotificationService` (`src/server/services/notifications.ts`) sends the verification and reset emails for real via **Resend** — `ResendNotificationService` is the live implementation (replacing the earlier console stub), keeping the same interface so `auth.ts`'s call sites are unchanged. Templates (responsive HTML + plain-text) live in `src/lib/email/templates.ts`; the SDK wrapper is `src/lib/email/client.ts`. Config is env-only (`RESEND_API_KEY`, `EMAIL_FROM`, `SUPPORT_EMAIL`); with no key set, sends log to the console instead (local-dev fallback). **Sends are best-effort** — a delivery failure is caught + logged and never throws, so registration and the password-reset flow can't break because an email failed. See `ARCHITECTURE.md#email--notifications`.
 
 ## Rate Limiting Architecture
 

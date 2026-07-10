@@ -53,9 +53,13 @@ Set these in the host's environment (see `.env.example` for the full annotated l
 
 ## 6. Email Delivery
 
-- **[app-ready]** Contact submissions and order emails go through `NotificationService`, which currently **logs to the server console** and always **persists** (contact → Admin → Messages; orders → DB).
-- **[action]** For real email delivery, implement a provider (Resend/Postmark/SES) behind the existing `NotificationService` interface (`src/server/services/notifications.ts`) — one class swap, no call-site changes. Until then, monitor Admin → Messages for contact submissions.
-- **[app-ready]** Contact recipient is configurable at **Admin → Settings** (falls back to `CONTACT_RECIPIENT_EMAIL`, then `support@helixdivision.com`).
+- **[app-ready]** Real transactional email is sent via **Resend** (`ResendNotificationService`) — order confirmation + internal new-order alert, contact notification + confirmation, newsletter welcome + internal alert, password reset, email verification. Contact submissions still also **persist** (Admin → Messages), and orders persist to the DB. Emails are multipart (HTML + plain-text) and best-effort (a failure logs and never breaks the flow).
+- **[action]** Set the email env vars in the host (all read from the environment; never hardcoded):
+  - `RESEND_API_KEY` — from the Resend dashboard.
+  - `EMAIL_FROM` — `Helix Division <support@helixdivision.com>` (the domain must be **verified in Resend** — SPF/DKIM).
+  - `SUPPORT_EMAIL` — `support@helixdivision.com` (recipient for internal/staff notifications).
+  - Without `RESEND_API_KEY`, sends fall back to console logging (fine for local dev, not for production).
+- **[app-ready]** Contact recipient is configurable at **Admin → Settings** (falls back to `CONTACT_RECIPIENT_EMAIL`, then `SUPPORT_EMAIL`/`support@helixdivision.com`).
 
 ## 7. Payments
 
@@ -88,7 +92,7 @@ Run through once on production:
 ## Remaining production tasks (not blockers for a prototype, but do before public launch)
 
 1. **Cloud storage adapter** for the Media Library (Vercel Blob / S3) — required for durable uploads on serverless.
-2. **Real email provider** behind `NotificationService` (order + contact + auth emails).
+2. ~~Real email provider~~ **Done** — Resend is wired (`ResendNotificationService`); just needs `RESEND_API_KEY`/`EMAIL_FROM`/`SUPPORT_EMAIL` set and the domain verified in Resend (see §6).
 3. **Real payment integrations** for NOW Payments / Coinbase Commerce if crypto is wanted (Phases 11–12).
 4. **Rate limiting** on public actions (contact, register, checkout) — the `RateLimiter` interface exists with a no-op implementation; swap in a real backend (Upstash/Redis).
 5. **Error monitoring** (Sentry or equivalent) — the error boundaries are in place; wire a reporter in `src/app/error.tsx`/`global-error.tsx`.

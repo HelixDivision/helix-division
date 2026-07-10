@@ -59,7 +59,7 @@ The Research Center and Newsletter CMSes are **already built** (Phase 9.5). What
 ## Phase 14 — Production Hardening
 
 - Rate limiting on Server Actions (especially `createOrderAction`).
-- Structured logging/observability (replace `ConsoleNotificationService`/`ConsoleAnalyticsService` with real providers — email/SMS for notifications, a real analytics sink for events).
+- Structured logging/observability. **Email notifications are done** — `NotificationService` sends via Resend (`ResendNotificationService`); what remains here is replacing `ConsoleAnalyticsService` with a real analytics sink and adding structured logging/monitoring.
 - Real error boundaries + monitoring (Sentry or equivalent) across `(shop)`/`(account)`/`(admin)`.
 - Security pass: CSRF/session hardening review, admin action audit logging, input validation coverage review across all Server Actions.
 - Load-test the checkout path — real Prisma is live (Phase 6), but has only been exercised by manual/scripted testing so far, never concurrent load.
@@ -73,7 +73,7 @@ The Research Center and Newsletter CMSes are **already built** (Phase 9.5). What
 
 ## Known Future Integrations (not phase-scheduled yet)
 
-- Real email delivery for `NotificationService` (Resend/Postmark/SES — undecided).
+- ~~Real email delivery for `NotificationService`~~ **Done** — Resend (`ResendNotificationService`), HTML + plain-text templates, env-only config (`RESEND_API_KEY`/`EMAIL_FROM`/`SUPPORT_EMAIL`). See `ARCHITECTURE.md#email--notifications`.
 - Real analytics sink for `AnalyticsService` (PostHog/GA4/Segment — undecided).
 - Binary image upload for the admin product-image manager (S3/Cloudinary/UploadThing — undecided). Today the manager takes a `/public/products/...` path or an external URL; the ordering/alt/kind/position editing is all real, only the file-upload-to-storage step is deferred.
 - Reviews (`Review` model exists as a v2 admin stub; no customer-facing review submission UI planned yet).

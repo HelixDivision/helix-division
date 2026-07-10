@@ -160,11 +160,19 @@ interface InventoryService {
 // release; decrements ProductVariant.stock (physical) at confirmInventoryDeduction.
 // Manual admin adjustments are a SEPARATE service (admin-inventory.ts), not this one.
 
-// notifications.ts
+// notifications.ts — ResendNotificationService is live (real email via Resend).
+// Sends are best-effort: failures are caught + logged, never thrown into a caller.
+// sendOrderConfirmation also emits an internal new-order alert to SUPPORT_EMAIL;
+// sendContactMessage also confirms to the sender; sendNewsletterConfirmation also
+// alerts SUPPORT_EMAIL. Templates (HTML + plain-text) live in lib/email/templates.ts.
 interface NotificationService {
-  sendOrderConfirmation(order: OrderRecord): Promise<void>;
+  sendOrderConfirmation(order: OrderRecord, meta?: { providerId?: string }): Promise<void>;
   sendPaymentReceived(order: OrderRecord): Promise<void>;
   sendShipmentNotification(order: OrderRecord): Promise<void>;
+  sendEmailVerification(params: { email: string; url: string }): Promise<void>;
+  sendPasswordReset(params: { email: string; url: string }): Promise<void>;
+  sendContactMessage(params: ContactMessageNotification): Promise<void>; // to, fromName, fromEmail, subject, message, id, date?, ipAddress?, userAgent?
+  sendNewsletterConfirmation(params: { email: string; source?: string | null }): Promise<void>;
 }
 
 // lib/analytics.ts (not server/services — fires from client components too)

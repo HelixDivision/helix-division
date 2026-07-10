@@ -91,6 +91,9 @@ prisma/
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe adapter — optional/example, not a decided production provider |
 | `AUTHORIZE_API_LOGIN_ID`, `AUTHORIZE_TRANSACTION_KEY` | Authorize.net adapter — optional/example, not a decided production provider |
 | `NEXT_PUBLIC_GA_ID` | Google Analytics 4 measurement id (optional) — the GA script only renders when set; first-party analytics work regardless |
+| `RESEND_API_KEY` | Resend API key for transactional email. When unset, emails log to the console (local-dev fallback); set it to send for real |
+| `EMAIL_FROM` | Sender address (default `Helix Division <support@helixdivision.com>`); the domain must be verified in Resend |
+| `SUPPORT_EMAIL` | Recipient for internal/staff notifications — new orders, contact submissions, new subscribers (default `support@helixdivision.com`) |
 
 `DATABASE_URL` is consumed both by `prisma.config.ts` (CLI/migrations) and by `src/lib/db.ts`, which wraps it in a `@prisma/adapter-pg` driver adapter — Prisma 7's client generator requires an explicit driver adapter rather than reading the env var itself (see ARCHITECTURE.md). A reachable database is required to run `npm run dev` — the catalog and orders are both Prisma-backed.
 
