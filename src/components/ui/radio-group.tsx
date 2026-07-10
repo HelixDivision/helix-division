@@ -21,16 +21,21 @@ function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
     <RadioPrimitive.Root
       data-slot="radio-group-item"
       className={cn(
-        "border-input text-primary focus-visible:border-ring focus-visible:ring-ring/50 data-[checked]:border-accent-crimson aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 dark:bg-input/30 aspect-square size-4 shrink-0 rounded-full border bg-transparent shadow-xs transition-shadow outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50",
+        // `inline-flex items-center justify-center` makes the ring center its
+        // indicator. Without it the ring is `display:block`, the indicator
+        // collapses to 0 height (its dot was absolutely positioned) and the dot
+        // pinned to the ring's top edge — visibly off-centre. Flexbox centring
+        // is also exact at 125%/150% zoom, where 50%/translate rounding drifts.
+        "border-input text-primary focus-visible:border-ring focus-visible:ring-ring/50 data-[checked]:border-accent-crimson aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 dark:bg-input/30 inline-flex aspect-square size-4 shrink-0 items-center justify-center rounded-full border bg-transparent shadow-xs transition-shadow outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
     >
       <RadioPrimitive.Indicator
         data-slot="radio-group-item-indicator"
-        className="relative flex items-center justify-center"
+        className="flex items-center justify-center"
       >
-        <CircleIcon className="text-accent-crimson absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 fill-current" />
+        <CircleIcon className="text-accent-crimson size-2 fill-current" />
       </RadioPrimitive.Indicator>
     </RadioPrimitive.Root>
   );
