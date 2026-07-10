@@ -89,7 +89,7 @@ export function ProductImagesForm({
     <FormProvider {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-heading text-foreground-primary border-border text-sm tracking-wide uppercase">
+          <h3 className="font-heading text-foreground-primary text-sm tracking-wide uppercase">
             Images
           </h3>
           <Button

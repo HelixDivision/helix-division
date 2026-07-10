@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FormattedText } from "@/components/ui/formatted-text";
 import type { CatalogProduct } from "@/types/catalog";
 
 interface QuickViewDialogProps {
@@ -44,7 +45,10 @@ export function QuickViewDialog({ product, onOpenChange }: QuickViewDialogProps)
                   {variant.label}
                 </span>
                 <PriceDisplay price={variant.price} compareAtPrice={variant.compareAtPrice} />
-                <p className="text-foreground-muted text-sm">{product.description}</p>
+                <FormattedText
+                  text={product.description}
+                  className="text-foreground-muted text-sm"
+                />
                 <AddToCartButton product={product} />
                 <Button
                   variant="ghost"

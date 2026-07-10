@@ -16,6 +16,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { FormattedText } from "@/components/ui/formatted-text";
 import { getStockStatus } from "@/lib/stock-status";
 import {
   getAllProductSlugPairs,
@@ -110,7 +111,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           <span className="text-sm font-medium uppercase">{stockStatusCopy[stockStatus]}</span>
 
-          <p className="text-foreground-muted max-w-md text-sm">{product.description}</p>
+          <FormattedText
+            text={product.description}
+            className="text-foreground-muted max-w-md text-sm"
+          />
 
           <div className="mt-2">
             <AddToCartButton product={product} />
@@ -165,7 +169,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 requires an explicit research-use acknowledgment.
               </p>
               {product.researchSummary && (
-                <p className="text-foreground-muted mt-3">{product.researchSummary}</p>
+                <FormattedText
+                  text={product.researchSummary}
+                  className="text-foreground-muted mt-3"
+                />
               )}
             </AccordionContent>
           </AccordionItem>

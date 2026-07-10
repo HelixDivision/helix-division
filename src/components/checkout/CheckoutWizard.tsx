@@ -280,11 +280,12 @@ export function CheckoutWizard({ providers }: CheckoutWizardProps) {
                   }
                 >
                   {providers.map((provider) => (
-                    <FieldLabel key={provider.id} className="flex-row items-center gap-2">
+                    <FieldLabel
+                      key={provider.id}
+                      className="border-border hover:border-accent-gunmetal/60 has-data-checked:border-accent-crimson has-data-checked:bg-accent-crimson/5 flex w-full cursor-pointer flex-row items-center gap-3 rounded-lg border p-4 transition-colors"
+                    >
                       <RadioGroupItem value={provider.id} />
-                      <FieldContent>
-                        <span className="text-foreground-primary text-sm">{provider.label}</span>
-                      </FieldContent>
+                      <span className="text-foreground-primary text-sm">{provider.label}</span>
                     </FieldLabel>
                   ))}
                 </RadioGroup>

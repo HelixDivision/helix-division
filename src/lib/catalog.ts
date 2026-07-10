@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { getStockStatus } from "@/lib/stock-status";
 import type {
   CatalogCategory,
   CatalogDocument,
@@ -25,10 +26,14 @@ import type {
 
 export type ProductSort = "featured" | "price-asc" | "price-desc" | "name-asc" | "newest";
 
+/** Storefront inventory filter — matches the status shown on each product card. */
+export type StockFilter = "in-stock" | "out-of-stock" | "coming-soon";
+
 export interface GetProductsParams {
   category?: string;
   q?: string;
   sort?: ProductSort;
+  stock?: StockFilter;
   page?: number;
   pageSize?: number;
 }
@@ -217,6 +222,23 @@ function matchesQuery(product: CatalogProduct, q: string): boolean {
   );
 }
 
+// A product's storefront stock status follows its first (default) variant —
+// the same variant getStockStatus/ProductCardLink use to render the card badge —
+// so filtering matches exactly what the shopper sees on each card.
+function matchesStock(product: CatalogProduct, filter: StockFilter): boolean {
+  const variant = product.variants[0];
+  if (!variant) return filter === "coming-soon";
+  const status = getStockStatus(variant);
+  switch (filter) {
+    case "in-stock":
+      return status === "in-stock" || status === "low-stock";
+    case "out-of-stock":
+      return status === "out-of-stock";
+    case "coming-soon":
+      return status === "coming-soon";
+  }
+}
+
 function sortProducts(items: CatalogProduct[], sort: ProductSort): CatalogProduct[] {
   const priceOf = (p: CatalogProduct) => p.variants[0]?.price ?? null;
 
@@ -246,7 +268,7 @@ function sortProducts(items: CatalogProduct[], sort: ProductSort): CatalogProduc
 // (~20 products), and keeping this logic unchanged minimizes behavior drift
 // from swapping the data source underneath it.
 export async function getProducts(params: GetProductsParams = {}): Promise<GetProductsResult> {
-  const { category, q, sort = "featured", page = 1, pageSize = 12 } = params;
+  const { category, q, sort = "featured", stock, page = 1, pageSize = 12 } = params;
 
   const rows = await db.product.findMany({
     where: {
@@ -257,6 +279,7 @@ export async function getProducts(params: GetProductsParams = {}): Promise<GetPr
   });
   let items = rows.map(toCatalogProduct);
   if (q) items = items.filter((p) => matchesQuery(p, q));
+  if (stock) items = items.filter((p) => matchesStock(p, stock));
   items = sortProducts(items, sort);
 
   const total = items.length;

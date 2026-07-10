@@ -3,3 +3,5 @@ node_modules
 public
 *.md
 package-lock.json
+# Generated Prisma client — vendored for deploy (see DEPLOYMENT.md); not hand-edited, so not style-checked.
+src/generated

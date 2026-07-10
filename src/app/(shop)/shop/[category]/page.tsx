@@ -11,11 +11,17 @@ import {
   getCategoryBySlug,
   getProducts,
   type ProductSort,
+  type StockFilter,
 } from "@/server/services/catalog";
 
 interface CategoryPageProps {
   params: Promise<{ category: string }>;
-  searchParams: Promise<{ q?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; sort?: string; stock?: string; page?: string }>;
+}
+
+const STOCK_FILTERS: StockFilter[] = ["in-stock", "out-of-stock", "coming-soon"];
+function parseStock(value: string | undefined): StockFilter | undefined {
+  return STOCK_FILTERS.find((f) => f === value);
 }
 
 export async function generateStaticParams() {
@@ -46,6 +52,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
     category: category.slug,
     q: search.q,
     sort: (search.sort as ProductSort) || "featured",
+    stock: parseStock(search.stock),
     page,
   });
 
@@ -53,6 +60,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
     const params = new URLSearchParams();
     if (search.q) params.set("q", search.q);
     if (search.sort) params.set("sort", search.sort);
+    if (search.stock) params.set("stock", search.stock);
     if (targetPage > 1) params.set("page", String(targetPage));
     const qs = params.toString();
     return qs ? `/shop/${category.slug}?${qs}` : `/shop/${category.slug}`;
@@ -82,7 +90,11 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
       </div>
 
       <div className="mt-8">
-        <ShopResults products={result.items} categories={categories} />
+        <ShopResults
+          products={result.items}
+          categories={categories}
+          filtered={Boolean(search.q || search.stock)}
+        />
         <Pagination page={result.page} pageCount={result.pageCount} buildHref={buildHref} />
       </div>
     </div>

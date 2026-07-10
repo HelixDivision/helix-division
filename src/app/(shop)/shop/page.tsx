@@ -11,6 +11,7 @@ import {
   getFeaturedProducts,
   getProducts,
   type ProductSort,
+  type StockFilter,
 } from "@/server/services/catalog";
 
 export const metadata: Metadata = {
@@ -19,7 +20,12 @@ export const metadata: Metadata = {
 };
 
 interface ShopPageProps {
-  searchParams: Promise<{ q?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; sort?: string; stock?: string; page?: string }>;
+}
+
+const STOCK_FILTERS: StockFilter[] = ["in-stock", "out-of-stock", "coming-soon"];
+function parseStock(value: string | undefined): StockFilter | undefined {
+  return STOCK_FILTERS.find((f) => f === value);
 }
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
@@ -30,6 +36,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const result = await getProducts({
     q: params.q,
     sort: (params.sort as ProductSort) || "featured",
+    stock: parseStock(params.stock),
     page,
   });
 
@@ -37,6 +44,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     const search = new URLSearchParams();
     if (params.q) search.set("q", params.q);
     if (params.sort) search.set("sort", params.sort);
+    if (params.stock) search.set("stock", params.stock);
     if (targetPage > 1) search.set("page", String(targetPage));
     const qs = search.toString();
     return qs ? `/shop?${qs}` : "/shop";
@@ -53,7 +61,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         </p>
       </FadeIn>
 
-      {featured.length > 0 && !params.q && (
+      {featured.length > 0 && !params.q && !params.stock && (
         <section className="mt-10">
           <p className="font-heading text-foreground-primary text-xl tracking-wide uppercase sm:text-2xl">
             Featured
@@ -78,7 +86,11 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
       </div>
 
       <div className="mt-8">
-        <ShopResults products={result.items} categories={categories} />
+        <ShopResults
+          products={result.items}
+          categories={categories}
+          filtered={Boolean(params.q || params.stock)}
+        />
         <Pagination page={result.page} pageCount={result.pageCount} buildHref={buildHref} />
       </div>
     </div>

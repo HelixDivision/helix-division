@@ -19,6 +19,7 @@ export {
   type GetProductsParams,
   type GetProductsResult,
   type ProductSort,
+  type StockFilter,
 } from "@/lib/catalog";
 
 export { getStockStatus };

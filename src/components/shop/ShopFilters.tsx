@@ -24,6 +24,14 @@ const sortOptions: { value: string; label: string }[] = [
   { value: "newest", label: "Newest" },
 ];
 
+// "all" clears the stock searchParam; the other values map 1:1 to StockFilter.
+const stockOptions: { value: string; label: string }[] = [
+  { value: "all", label: "All Products" },
+  { value: "in-stock", label: "In Stock" },
+  { value: "out-of-stock", label: "Out of Stock" },
+  { value: "coming-soon", label: "Coming Soon" },
+];
+
 interface ShopFiltersProps {
   categories: CatalogCategory[];
   activeCategorySlug?: string;
@@ -60,6 +68,7 @@ export function ShopFilters({ categories, activeCategorySlug }: ShopFiltersProps
   }, [debouncedSearch]);
 
   const currentSort = searchParams.get("sort") ?? "featured";
+  const currentStock = searchParams.get("stock") ?? "all";
 
   return (
     <div className="flex flex-col gap-4">
@@ -76,18 +85,36 @@ export function ShopFilters({ categories, activeCategorySlug }: ShopFiltersProps
           />
         </div>
 
-        <Select value={currentSort} onValueChange={(value) => updateParam("sort", value)}>
-          <SelectTrigger className="w-full sm:w-52" aria-label="Sort products">
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            {sortOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Select
+            value={currentStock}
+            onValueChange={(value) => updateParam("stock", value === "all" ? null : value)}
+          >
+            <SelectTrigger className="w-full sm:w-44" aria-label="Filter by availability">
+              <SelectValue placeholder="Availability" />
+            </SelectTrigger>
+            <SelectContent>
+              {stockOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={currentSort} onValueChange={(value) => updateParam("sort", value)}>
+            <SelectTrigger className="w-full sm:w-52" aria-label="Sort products">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

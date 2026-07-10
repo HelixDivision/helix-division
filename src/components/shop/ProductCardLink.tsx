@@ -50,7 +50,7 @@ export function ProductCardLink({ product, categoryName, onQuickView }: ProductC
     <ProductCard
       name={product.name}
       href={`/shop/${product.categorySlug}/${product.slug}`}
-      imageUrl={image?.url ?? "/products/bpc-157.png"}
+      imageUrl={image?.url ?? null}
       imageAlt={image?.alt ?? product.name}
       price={variant.price}
       compareAtPrice={variant.compareAtPrice}

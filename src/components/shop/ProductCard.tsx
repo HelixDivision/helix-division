@@ -1,5 +1,5 @@
 import type { VariantProps } from "class-variance-authority";
-import { Eye } from "lucide-react";
+import { Eye, ImageOff } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -27,7 +27,7 @@ const stockStatusClassName: Record<StockStatus, string> = {
 interface ProductCardProps {
   name: string;
   href: string;
-  imageUrl: string;
+  imageUrl: string | null;
   imageAlt: string;
   price: number | null;
   compareAtPrice?: number | null;
@@ -72,13 +72,22 @@ export function ProductCard({
     <Card className="group/product-card hover:border-accent-gunmetal/40 hover:shadow-elevation-2 flex h-full flex-col gap-0 p-0 transition-all duration-250 hover:-translate-y-1">
       <Link href={href} className="flex flex-col">
         <div className="bg-background-raised relative aspect-square overflow-hidden">
-          <Image
-            src={imageUrl}
-            alt={imageAlt}
-            fill
-            className="object-cover transition-transform duration-250 ease-out group-hover/product-card:scale-105"
-            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-          />
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={imageAlt}
+              fill
+              className="object-cover transition-transform duration-250 ease-out group-hover/product-card:scale-105"
+              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+            />
+          ) : (
+            <div
+              className="text-foreground-muted/40 flex h-full w-full items-center justify-center"
+              aria-label="No product image"
+            >
+              <ImageOff className="size-10" aria-hidden />
+            </div>
+          )}
           {badge && <ProductBadge variant={badge} className="absolute top-3 left-3" />}
         </div>
 

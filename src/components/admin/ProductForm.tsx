@@ -188,7 +188,12 @@ export function ProductForm({
               description="Lowercase, hyphen-separated — forms the product URL"
             />
           </div>
-          <TextareaField name="description" label="Description" rows={4} />
+          <TextareaField
+            name="description"
+            label="Description"
+            rows={6}
+            description="Renders exactly as typed. Blank line = new paragraph; start lines with “- ” for a bullet list or “1. ” for a numbered list."
+          />
           <TextareaField name="researchSummary" label="Research summary (optional)" rows={3} />
 
           <div className="grid gap-4 sm:grid-cols-3">
