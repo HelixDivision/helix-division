@@ -126,7 +126,9 @@ export default async function AdminProductsPage({ searchParams }: ProductsPagePr
                         href={`/admin/products/${product.id}`}
                         className="flex items-center gap-3"
                       >
-                        {product.images[0] && product.images[0].url.startsWith("/") ? (
+                        {product.images[0] &&
+                        (product.images[0].url.startsWith("/") ||
+                          product.images[0].url.startsWith("http")) ? (
                           <span className="bg-background-raised relative block size-10 shrink-0 overflow-hidden rounded-md">
                             <Image
                               src={product.images[0].url}

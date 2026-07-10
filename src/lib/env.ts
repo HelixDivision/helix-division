@@ -40,6 +40,13 @@ const envSchema = z.object({
   // new newsletter subscribers). Defaults to support@helixdivision.com when unset.
   SUPPORT_EMAIL: z.string().optional(),
 
+  // --- File storage (Vercel Blob) ---
+  // Read/write token for Vercel Blob. Auto-injected by Vercel when a Blob store
+  // is connected to the project. When present, uploads go to Vercel Blob (durable,
+  // required on Vercel's read-only serverless filesystem); when absent, uploads
+  // use the local filesystem (public/uploads) for dev. Never hardcoded.
+  BLOB_READ_WRITE_TOKEN: z.string().optional(),
+
   // Decided production providers: wise, now-payments, coinbase-commerce —
   // see ARCHITECTURE.md#payment-architecture. bitcoin/stripe/authorize
   // remain registered as optional/example adapters, not defaults.

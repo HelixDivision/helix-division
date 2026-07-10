@@ -12,15 +12,25 @@ import type { OrderRecord } from "@/server/repositories/order-repository";
  */
 
 const SITE_URL = env.NEXT_PUBLIC_SITE_URL;
+const SITE_HOST = SITE_URL.replace(/^https?:\/\//, "").replace(/\/$/, "");
+const SUPPORT_ADDRESS = "support@helixdivision.com";
 
+// Helix Division dark identity — black canvas, crimson accents, matching the
+// site's background.base / raised / foreground / accent tokens.
 const COLORS = {
-  ink: "#0a0a0b",
-  crimson: "#b3121b",
-  text: "#1f1f22",
-  muted: "#6b6b70",
-  border: "#e6e6e8",
-  panel: "#f7f7f8",
+  bg: "#0a0a0b", // page canvas (black)
+  card: "#141416", // email card / raised surface
+  panel: "#1c1c1f", // inset boxes (messages, code)
+  text: "#f2f2f0", // primary text
+  muted: "#9a9a9e", // secondary text
+  border: "#26262a", // hairline borders
+  crimson: "#b3121b", // accent / CTAs
 };
+
+// Condensed industrial display stack for headings/wordmark (evokes the site's
+// Oswald/Bebas display face); clean grotesque for body.
+const DISPLAY_FONT = "'Arial Narrow','Helvetica Neue',Arial,sans-serif";
+const BODY_FONT = "Arial,Helvetica,sans-serif";
 
 export interface EmailContent {
   subject: string;
@@ -61,7 +71,8 @@ function fmtDateTime(value: string | Date): string {
 
 // ---------- HTML building blocks ----------
 
-/** Shared shell: dark header wordmark, white content card, disclaimer footer. */
+/** Shared Helix Division shell: black canvas, crimson-accented wordmark header,
+ * raised dark content card, branded footer (site URL, support email, copyright). */
 function layout({
   preheader,
   heading,
@@ -73,23 +84,35 @@ function layout({
 }): string {
   return `<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
-<body style="margin:0;padding:0;background:${COLORS.panel};">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+</head>
+<body style="margin:0;padding:0;background:${COLORS.bg};font-family:${BODY_FONT};">
   <span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${esc(preheader)}</span>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.panel};padding:24px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.bg};padding:28px 12px;">
     <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid ${COLORS.border};border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
-        <tr><td style="background:${COLORS.ink};padding:20px 28px;">
-          <span style="font-size:20px;font-weight:bold;letter-spacing:2px;color:#ffffff;">HELIX</span>
-          <span style="font-size:20px;font-weight:bold;letter-spacing:2px;color:${COLORS.crimson};">DIVISION</span>
-          <div style="font-size:10px;letter-spacing:2px;color:#8a8a90;margin-top:2px;">PRECISION MOLECULAR SYSTEMS</div>
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${COLORS.card};border:1px solid ${COLORS.border};border-radius:14px;overflow:hidden;">
+        <tr><td style="height:4px;background:${COLORS.crimson};line-height:4px;font-size:4px;">&nbsp;</td></tr>
+        <tr><td align="center" style="padding:30px 28px 22px;background:${COLORS.bg};border-bottom:1px solid ${COLORS.border};">
+          <div style="font-family:${DISPLAY_FONT};font-size:30px;font-weight:bold;letter-spacing:5px;line-height:1;">
+            <span style="color:#ffffff;">HELIX</span><span style="color:${COLORS.crimson};">DIVISION</span>
+          </div>
+          <div style="font-size:10px;letter-spacing:3px;color:${COLORS.muted};margin-top:8px;">PRECISION MOLECULAR SYSTEMS</div>
         </td></tr>
-        <tr><td style="padding:28px;">
-          <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:${COLORS.text};">${esc(heading)}</h1>
-          <div style="font-size:14px;line-height:1.6;color:${COLORS.text};">${bodyHtml}</div>
+        <tr><td style="padding:30px 28px 24px;">
+          <h1 style="margin:0 0 18px;font-family:${DISPLAY_FONT};font-size:22px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;line-height:1.25;color:${COLORS.text};">${esc(heading)}</h1>
+          <div style="font-size:14px;line-height:1.65;color:${COLORS.text};">${bodyHtml}</div>
         </td></tr>
-        <tr><td style="padding:18px 28px;border-top:1px solid ${COLORS.border};background:${COLORS.panel};">
-          <p style="margin:0;font-size:11px;line-height:1.5;color:${COLORS.muted};">
+        <tr><td style="padding:22px 28px;border-top:1px solid ${COLORS.border};background:${COLORS.bg};">
+          <p style="margin:0 0 8px;font-size:11px;line-height:1.6;color:${COLORS.muted};">
+            <a href="${SITE_URL}" style="color:${COLORS.text};text-decoration:none;font-weight:bold;letter-spacing:1px;">${esc(SITE_HOST)}</a>
+            &nbsp;&middot;&nbsp;
+            <a href="mailto:${SUPPORT_ADDRESS}" style="color:${COLORS.muted};text-decoration:none;">${SUPPORT_ADDRESS}</a>
+          </p>
+          <p style="margin:0;font-size:11px;line-height:1.6;color:${COLORS.muted};">
             Research use only. Not for human or animal consumption.<br>
             &copy; ${new Date().getFullYear()} Helix Division. All rights reserved.
           </p>
@@ -102,9 +125,11 @@ function layout({
 }
 
 function button(href: string, label: string): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 20px;"><tr><td style="border-radius:8px;background:${COLORS.crimson};">
-    <a href="${esc(href)}" style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px;">${esc(label)}</a>
-  </td></tr></table>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:12px 0 22px;"><tr>
+    <td align="center" style="border-radius:8px;background:${COLORS.crimson};">
+      <a href="${esc(href)}" style="display:inline-block;padding:13px 28px;font-family:${DISPLAY_FONT};font-size:14px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#ffffff;text-decoration:none;border-radius:8px;">${esc(label)}</a>
+    </td>
+  </tr></table>`;
 }
 
 function labelled(label: string, value: string): string {
@@ -157,7 +182,7 @@ function itemsTable(order: OrderRecord): string {
 
 // ---------- plain-text building blocks ----------
 
-const TEXT_FOOTER = `\n\n—\nResearch use only. Not for human or animal consumption.\n© ${new Date().getFullYear()} Helix Division`;
+const TEXT_FOOTER = `\n\n———————————————\nHELIX DIVISION · Precision Molecular Systems\n${SITE_HOST} · ${SUPPORT_ADDRESS}\nResearch use only. Not for human or animal consumption.\n© ${new Date().getFullYear()} Helix Division. All rights reserved.`;
 
 function textLayout(lines: string): string {
   return `${lines}${TEXT_FOOTER}`;

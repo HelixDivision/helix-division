@@ -44,7 +44,8 @@ const KIND_LABELS: Record<string, string> = {
 
 function ImagePreview({ index }: { index: number }) {
   const url = useWatch({ name: `images.${index}.url` as const }) as string;
-  if (!url || !url.startsWith("/")) return null;
+  // Render a preview for local (/uploads/...) and absolute (Vercel Blob) URLs.
+  if (!url || !(url.startsWith("/") || url.startsWith("http"))) return null;
   return (
     <div className="bg-background-raised relative size-16 shrink-0 overflow-hidden rounded-md">
       <Image src={url} alt="" fill sizes="64px" className="object-contain" />
