@@ -48,8 +48,8 @@ Set these in the host's environment (see `.env.example` for the full annotated l
 
 ## 5. File Storage (Media Library / COA / CMS images)
 
-- **[app-ready]** Uploads go through the `StorageProvider` abstraction (`src/lib/storage/`). The current `LocalStorageProvider` writes to `public/uploads/`.
-- **[action — important for Vercel]** Vercel's filesystem is **ephemeral**, so local uploads won't persist across deploys. Before relying on uploads in production, implement a cloud adapter (e.g. **Vercel Blob** or **S3**) — it's a two-method class implementing `StorageProvider` plus one line changed in `src/lib/storage/provider.ts`; **no other code changes**. For a short-lived prototype where you seed content once and don't re-deploy, local storage can work temporarily, but the cloud adapter is the correct production step.
+- **[app-ready]** Uploads go through the `StorageProvider` abstraction (`src/lib/storage/`). Two adapters exist: `LocalStorageProvider` (dev — writes `public/uploads/`) and **`VercelBlobStorageProvider`** (production — `@vercel/blob`). `provider.ts` picks by env: if `BLOB_READ_WRITE_TOKEN` is set → Vercel Blob, else local. This exists because **Vercel's serverless filesystem is read-only** — `LocalStorageProvider`'s writes throw `EROFS` there, which is why media uploads fail on Vercel until Blob is connected.
+- **[action — required for uploads on Vercel]** In the Vercel dashboard, **Storage → create a Blob store and connect it to the project**. Vercel auto-injects `BLOB_READ_WRITE_TOKEN`; redeploy so it takes effect. After that, Media Library / COA / CMS uploads persist to Blob and render via `next/image` (remote hosts are already allowed in `next.config.ts`). No code change needed — the adapter and selection are in place.
 
 ## 6. Email Delivery
 
@@ -91,7 +91,7 @@ Run through once on production:
 
 ## Remaining production tasks (not blockers for a prototype, but do before public launch)
 
-1. **Cloud storage adapter** for the Media Library (Vercel Blob / S3) — required for durable uploads on serverless.
+1. ~~Cloud storage adapter for the Media Library~~ **Done** — `VercelBlobStorageProvider` is implemented and auto-selected when `BLOB_READ_WRITE_TOKEN` is present. Action: connect a Vercel Blob store to the project + redeploy (see §5).
 2. ~~Real email provider~~ **Done** — Resend is wired (`ResendNotificationService`); just needs `RESEND_API_KEY`/`EMAIL_FROM`/`SUPPORT_EMAIL` set and the domain verified in Resend (see §6).
 3. **Real payment integrations** for NOW Payments / Coinbase Commerce if crypto is wanted (Phases 11–12).
 4. **Rate limiting** on public actions (contact, register, checkout) — the `RateLimiter` interface exists with a no-op implementation; swap in a real backend (Upstash/Redis).
