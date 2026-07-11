@@ -96,7 +96,10 @@ function layout({
     <tr><td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${COLORS.card};border:1px solid ${COLORS.border};border-radius:14px;overflow:hidden;">
         <tr><td style="height:4px;background:${COLORS.crimson};line-height:4px;font-size:4px;">&nbsp;</td></tr>
-        <tr><td align="center" style="padding:30px 28px 22px;background:${COLORS.bg};border-bottom:1px solid ${COLORS.border};">
+        <tr><td align="center" style="padding:32px 28px 22px;background:${COLORS.bg};border-bottom:1px solid ${COLORS.border};">
+          <div style="width:56px;height:56px;margin:0 auto 16px;background:${COLORS.panel};border:2px solid ${COLORS.crimson};border-radius:12px;">
+            <div style="font-family:${DISPLAY_FONT};font-size:24px;font-weight:bold;letter-spacing:1px;color:#ffffff;line-height:52px;text-align:center;">HD</div>
+          </div>
           <div style="font-family:${DISPLAY_FONT};font-size:30px;font-weight:bold;letter-spacing:5px;line-height:1;">
             <span style="color:#ffffff;">HELIX</span><span style="color:${COLORS.crimson};">DIVISION</span>
           </div>
