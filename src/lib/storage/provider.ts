@@ -28,16 +28,22 @@ function resolveBlobToken(): string | undefined {
   return key ? process.env[key] : undefined;
 }
 
-const blobToken = resolveBlobToken();
+/** OIDC is Vercel Blob's default auth (VERCEL_OIDC_TOKEN + BLOB_STORE_ID), scoped
+ * to the connected store. When present, the SDK uses it — no static token needed. */
+function oidcAvailable(): boolean {
+  return Boolean(process.env.VERCEL_OIDC_TOKEN && process.env.BLOB_STORE_ID);
+}
 
-// TEMP DIAGNOSTIC — remove once production is confirmed on Blob. Surfaces the
-// selection + whether the token is visible at runtime, and (when absent) which
-// BLOB-ish env keys exist, so a naming/scoping issue is obvious in the logs.
+const blobToken = resolveBlobToken();
+// Use Blob when the store is reachable by EITHER auth path: OIDC (the Vercel
+// default) or a static read-write token (off-Vercel / local with a token).
+const useBlob = oidcAvailable() || Boolean(blobToken);
+
+// TEMP DIAGNOSTIC — remove once production is confirmed on Blob.
 console.info(
-  `[storage] Selected Storage Provider: ${blobToken ? "VercelBlobStorageProvider" : "LocalStorageProvider"}`,
+  `[storage] Selected Storage Provider: ${useBlob ? "VercelBlobStorageProvider" : "LocalStorageProvider"} (oidc=${oidcAvailable()} staticToken=${Boolean(blobToken)})`,
 );
-console.info(`[storage] Blob token present: ${Boolean(blobToken)}`);
-if (!blobToken) {
+if (!useBlob) {
   console.info(
     `[storage] Local provider selected. BLOB-ish env keys seen: ${JSON.stringify(
       Object.keys(process.env).filter((k) => /BLOB/i.test(k)),
@@ -45,19 +51,20 @@ if (!blobToken) {
   );
 }
 
-export const storageProvider: StorageProvider = blobToken
+export const storageProvider: StorageProvider = useBlob
   ? new VercelBlobStorageProvider(blobToken)
   : new LocalStorageProvider();
 
 /**
  * TEMP DIAGNOSTIC — per-request snapshot of the storage selection, computed
  * fresh from the runtime env. Returned to the browser by uploadMediaAction so
- * the actual provider + token state is visible without relying on server logs.
+ * the actual auth path is visible without relying on server logs.
  */
 export function describeStorageSelection(): string {
   const token = resolveBlobToken();
-  const blobKeys = Object.keys(process.env).filter((k) => /BLOB/i.test(k));
-  return `provider=${token ? "VercelBlob" : "Local"} tokenPresent=${Boolean(token)} moduleSelected=${blobToken ? "VercelBlob" : "Local"} blobEnvKeys=${JSON.stringify(blobKeys)}`;
+  const oidc = oidcAvailable();
+  const blobKeys = Object.keys(process.env).filter((k) => /BLOB|OIDC/i.test(k));
+  return `provider=${oidc || token ? "VercelBlob" : "Local"} auth=${oidc ? "OIDC" : token ? "static-token" : "none"} oidcAvailable=${oidc} staticTokenPresent=${Boolean(token)} moduleSelected=${useBlob ? "VercelBlob" : "Local"} envKeys=${JSON.stringify(blobKeys)}`;
 }
 
 export type { StorageProvider } from "@/lib/storage/types";
