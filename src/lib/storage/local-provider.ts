@@ -22,6 +22,10 @@ const UPLOADS_ROOT = path.join(process.cwd(), "public", "uploads");
 export class LocalStorageProvider implements StorageProvider {
   async put(input: PutFileInput): Promise<StoredFile> {
     const dir = path.join(UPLOADS_ROOT, input.folder);
+    // TEMP DIAGNOSTIC — remove once production is confirmed on Blob. On Vercel
+    // this line is the one that throws ENOENT/EROFS (public/ is read-only), which
+    // is the definitive tell that Blob was NOT selected.
+    console.info(`[storage] Local provider selected — mkdir ${dir}`);
     await mkdir(dir, { recursive: true });
 
     // Collision-proof filename: slugified base + short random suffix + ext.
