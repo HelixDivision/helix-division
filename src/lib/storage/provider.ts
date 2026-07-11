@@ -3,68 +3,46 @@ import type { StorageProvider } from "@/lib/storage/types";
 import { VercelBlobStorageProvider } from "@/lib/storage/vercel-blob-provider";
 
 /**
- * The single place the active storage adapter is chosen — driven by the Vercel
- * Blob token at runtime, no code change to switch environments. When the token
- * is present (Vercel with a connected Blob store) uploads go to Vercel Blob —
- * required in production, where the serverless filesystem is read-only and
- * LocalStorageProvider's writes throw EROFS/ENOENT. Otherwise (local dev) uploads
- * use the local filesystem. Everything else imports `storageProvider`, never a
- * concrete class.
+ * The single place the active storage adapter is chosen. This module decides
+ * only WHETHER Vercel Blob credentials exist (Blob vs local-FS); it never
+ * resolves or passes a credential itself — the @vercel/blob SDK does its own
+ * documented resolution inside the adapter (see vercel-blob-provider.ts).
+ *
+ * The check below mirrors the SDK's resolution inputs EXACTLY:
+ *   - OIDC: VERCEL_OIDC_TOKEN + BLOB_STORE_ID (both required), or
+ *   - a static token under the exact name BLOB_READ_WRITE_TOKEN.
+ * No broader matching (e.g. prefixed token names) — the SDK doesn't do that,
+ * and diverging from its resolution is what previously broke production.
+ *
+ * On Vercel this selects Blob (required — the serverless filesystem is
+ * read-only; local writes throw EROFS/ENOENT). In local dev with no Blob
+ * credentials it selects the local filesystem.
  */
-
-/**
- * Resolve the Vercel Blob read/write token from the runtime environment.
- * Vercel injects `BLOB_READ_WRITE_TOKEN` when a Blob store is connected; if the
- * store was connected with a store prefix, the variable is
- * `<PREFIX>_BLOB_READ_WRITE_TOKEN` — so we also accept any var ending in
- * `BLOB_READ_WRITE_TOKEN`. Read from `process.env` directly (not the zod-parsed
- * `env`) so a custom-named token is still found.
- */
-function resolveBlobToken(): string | undefined {
-  if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
-  const key = Object.keys(process.env).find(
-    (k) => k.endsWith("BLOB_READ_WRITE_TOKEN") && process.env[k],
-  );
-  return key ? process.env[key] : undefined;
+function sdkCredentialsAvailable(): boolean {
+  const oidc = Boolean(process.env.VERCEL_OIDC_TOKEN && process.env.BLOB_STORE_ID);
+  return oidc || Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
-/** OIDC is Vercel Blob's default auth (VERCEL_OIDC_TOKEN + BLOB_STORE_ID), scoped
- * to the connected store. When present, the SDK uses it — no static token needed. */
-function oidcAvailable(): boolean {
-  return Boolean(process.env.VERCEL_OIDC_TOKEN && process.env.BLOB_STORE_ID);
-}
-
-const blobToken = resolveBlobToken();
-// Use Blob when the store is reachable by EITHER auth path: OIDC (the Vercel
-// default) or a static read-write token (off-Vercel / local with a token).
-const useBlob = oidcAvailable() || Boolean(blobToken);
+const useBlob = sdkCredentialsAvailable();
 
 // TEMP DIAGNOSTIC — remove once production is confirmed on Blob.
 console.info(
-  `[storage] Selected Storage Provider: ${useBlob ? "VercelBlobStorageProvider" : "LocalStorageProvider"} (oidc=${oidcAvailable()} staticToken=${Boolean(blobToken)})`,
+  `[storage] Selected Storage Provider: ${useBlob ? "VercelBlobStorageProvider" : "LocalStorageProvider"}`,
 );
-if (!useBlob) {
-  console.info(
-    `[storage] Local provider selected. BLOB-ish env keys seen: ${JSON.stringify(
-      Object.keys(process.env).filter((k) => /BLOB/i.test(k)),
-    )}`,
-  );
-}
 
 export const storageProvider: StorageProvider = useBlob
-  ? new VercelBlobStorageProvider(blobToken)
+  ? new VercelBlobStorageProvider()
   : new LocalStorageProvider();
 
 /**
  * TEMP DIAGNOSTIC — per-request snapshot of the storage selection, computed
  * fresh from the runtime env. Returned to the browser by uploadMediaAction so
- * the actual auth path is visible without relying on server logs.
+ * the actual auth inputs are visible without relying on server logs.
  */
 export function describeStorageSelection(): string {
-  const token = resolveBlobToken();
-  const oidc = oidcAvailable();
-  const blobKeys = Object.keys(process.env).filter((k) => /BLOB|OIDC/i.test(k));
-  return `provider=${oidc || token ? "VercelBlob" : "Local"} auth=${oidc ? "OIDC" : token ? "static-token" : "none"} oidcAvailable=${oidc} staticTokenPresent=${Boolean(token)} moduleSelected=${useBlob ? "VercelBlob" : "Local"} envKeys=${JSON.stringify(blobKeys)}`;
+  const oidc = Boolean(process.env.VERCEL_OIDC_TOKEN && process.env.BLOB_STORE_ID);
+  const staticToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  return `provider=${oidc || staticToken ? "VercelBlob" : "Local"} sdkAuth=${oidc ? "OIDC" : staticToken ? "env-token" : "none"} moduleSelected=${useBlob ? "VercelBlob" : "Local"}`;
 }
 
 export type { StorageProvider } from "@/lib/storage/types";
