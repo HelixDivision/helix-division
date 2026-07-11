@@ -49,4 +49,15 @@ export const storageProvider: StorageProvider = blobToken
   ? new VercelBlobStorageProvider(blobToken)
   : new LocalStorageProvider();
 
+/**
+ * TEMP DIAGNOSTIC — per-request snapshot of the storage selection, computed
+ * fresh from the runtime env. Returned to the browser by uploadMediaAction so
+ * the actual provider + token state is visible without relying on server logs.
+ */
+export function describeStorageSelection(): string {
+  const token = resolveBlobToken();
+  const blobKeys = Object.keys(process.env).filter((k) => /BLOB/i.test(k));
+  return `provider=${token ? "VercelBlob" : "Local"} tokenPresent=${Boolean(token)} moduleSelected=${blobToken ? "VercelBlob" : "Local"} blobEnvKeys=${JSON.stringify(blobKeys)}`;
+}
+
 export type { StorageProvider } from "@/lib/storage/types";

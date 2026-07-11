@@ -71,11 +71,16 @@ export function MediaLibrary({ assets, folders }: { assets: MediaAssetView[]; fo
     fd.set("folder", uploadFolder || "general");
     const result = await uploadMediaAction(fd);
     setUploading(false);
+    // TEMP DIAGNOSTIC — surface the server-side trace in the browser console and
+    // toast, so the exact upload path/failure is visible without Vercel logs.
+    console.log("[HELIX upload trace]", result.trace, result);
     if (!result.success) {
-      toast.error(result.error ?? "Upload failed.");
+      toast.error(
+        `${result.error ?? "Upload failed."} — trace: ${(result.trace ?? []).join(" | ")}`,
+      );
       return;
     }
-    toast.success("Uploaded.");
+    toast.success(`Uploaded. trace: ${(result.trace ?? []).join(" | ")}`);
     router.refresh();
   }
 

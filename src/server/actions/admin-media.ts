@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { describeStorageSelection } from "@/lib/storage/provider";
 import { errorMessage, requireAdmin, type ActionResult } from "@/server/actions/shared";
 import {
   deleteMedia,
@@ -23,6 +24,9 @@ const NOT_AUTHORIZED: MediaActionResult = { success: false, error: "Not authoriz
 
 export interface MediaActionResult extends ActionResult {
   asset?: { id: string; url: string; alt: string | null; kind: "IMAGE" | "PDF" };
+  /** TEMP DIAGNOSTIC — step-by-step trace of the upload, returned to the browser
+   * so the exact failure point is visible without relying on server logs. */
+  trace?: string[];
 }
 
 async function fileToBuffer(file: File): Promise<Buffer> {
@@ -30,30 +34,57 @@ async function fileToBuffer(file: File): Promise<Buffer> {
 }
 
 export async function uploadMediaAction(formData: FormData): Promise<MediaActionResult> {
-  if (!(await requireAdmin())) return NOT_AUTHORIZED;
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { success: false, error: "Choose a file to upload." };
-  }
-  const folder = (formData.get("folder") as string | null) ?? undefined;
-  const alt = (formData.get("alt") as string | null) ?? undefined;
-
+  const trace: string[] = ["1:action-entered"];
   try {
+    if (!(await requireAdmin())) {
+      return { ...NOT_AUTHORIZED, trace: [...trace, "2:NOT-ADMIN"] };
+    }
+    trace.push("2:admin-ok");
+
+    const file = formData.get("file");
+    const isFile = file instanceof File;
+    trace.push(
+      `3:file typeof=${typeof file} isFile=${isFile} size=${isFile ? file.size : "n/a"} name=${isFile ? file.name : "n/a"} mime=${isFile ? file.type : "n/a"} formKeys=${JSON.stringify([...formData.keys()])}`,
+    );
+    if (!isFile || file.size === 0) {
+      return {
+        success: false,
+        error: "Choose a file to upload.",
+        trace: [...trace, "3:FILE-MISSING"],
+      };
+    }
+
+    trace.push(`4:storage ${describeStorageSelection()}`);
+
+    const folder = (formData.get("folder") as string | null) ?? undefined;
+    const alt = (formData.get("alt") as string | null) ?? undefined;
+
+    trace.push("5:buffering");
+    const data = await fileToBuffer(file);
+    trace.push(`6:buffered bytes=${data.byteLength}`);
+
+    trace.push("7:calling-uploadMedia(storageProvider.put)");
     const asset = await uploadMedia({
-      data: await fileToBuffer(file),
+      data,
       originalName: file.name,
       mimeType: file.type,
       folder,
       alt,
     });
+    trace.push(`8:uploadMedia-done url=${asset.url}`);
+
     revalidatePath("/admin/media");
     return {
       success: true,
       asset: { id: asset.id, url: asset.url, alt: asset.alt, kind: asset.kind },
+      trace,
     };
   } catch (error) {
-    return { success: false, error: errorMessage(error) };
+    return {
+      success: false,
+      error: errorMessage(error),
+      trace: [...trace, `ERROR:${errorMessage(error)}`],
+    };
   }
 }
 
