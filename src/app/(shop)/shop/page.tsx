@@ -16,7 +16,7 @@ import {
 
 export const metadata: Metadata = {
   title: "Shop | Helix Division",
-  description: "Lab-verified research peptides, SARMs, laboratory supplies, and accessories.",
+  description: "Lab-verified research peptides, laboratory supplies, and accessories.",
 };
 
 interface ShopPageProps {

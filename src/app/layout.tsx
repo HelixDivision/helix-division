@@ -39,7 +39,6 @@ export const metadata: Metadata = {
     "research peptides",
     "research materials",
     "peptides for research",
-    "SARMs",
     "laboratory supplies",
     "certificate of analysis",
     "research use only",

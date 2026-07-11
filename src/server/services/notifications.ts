@@ -9,6 +9,7 @@ import {
   orderConfirmationEmail,
   passwordResetEmail,
   paymentReceivedEmail,
+  pendingPaymentEmail,
   shipmentNotificationEmail,
 } from "@/lib/email/templates";
 import type { OrderRecord } from "@/server/repositories/order-repository";
@@ -39,6 +40,7 @@ export interface OrderNotificationMeta {
 
 export interface NotificationService {
   sendOrderConfirmation(order: OrderRecord, meta?: OrderNotificationMeta): Promise<void>;
+  sendPaymentPending(order: OrderRecord): Promise<void>;
   sendPaymentReceived(order: OrderRecord): Promise<void>;
   sendShipmentNotification(order: OrderRecord): Promise<void>;
   sendEmailVerification(params: { email: string; url: string }): Promise<void>;
@@ -65,6 +67,19 @@ class ResendNotificationService implements NotificationService {
       subject: internal.subject,
       html: internal.html,
       text: internal.text,
+    });
+  }
+
+  // Bank-transfer (Wise) instructions email — sent when a customer chooses an
+  // offline/manual method and the order enters AWAITING_PAYMENT with transfer
+  // instructions attached (see createPaymentForOrder in orders.ts).
+  async sendPaymentPending(order: OrderRecord): Promise<void> {
+    const email = pendingPaymentEmail(order);
+    await sendEmail({
+      to: order.email,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
     });
   }
 

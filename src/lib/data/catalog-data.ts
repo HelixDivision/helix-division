@@ -18,13 +18,6 @@ export const categories: CatalogCategory[] = [
     attributeSchema: [{ key: "dosage", label: "Dosage" }],
   },
   {
-    id: "cat-sarms",
-    name: "SARMs",
-    slug: "sarms",
-    description: "Selective androgen receptor modulators for research use.",
-    attributeSchema: [{ key: "dosage", label: "Dosage" }],
-  },
-  {
     id: "cat-laboratory-supplies",
     name: "Laboratory Supplies",
     slug: "laboratory-supplies",

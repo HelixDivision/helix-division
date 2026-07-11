@@ -155,7 +155,15 @@ export async function createPaymentForOrder(
     confirmedAt: null,
   });
 
-  return orderRepository.updateStatus(orderId, "AWAITING_PAYMENT");
+  const updated = await orderRepository.updateStatus(orderId, "AWAITING_PAYMENT");
+
+  // Email the customer their bank-transfer (Wise) instructions when the
+  // provider returned some — best-effort, never blocks the payment flow.
+  if (result.instructions) {
+    await notificationService.sendPaymentPending(updated);
+  }
+
+  return updated;
 }
 
 export async function confirmPaymentSubmitted(orderId: string): Promise<OrderRecord> {
