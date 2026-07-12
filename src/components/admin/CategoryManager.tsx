@@ -1,12 +1,15 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { ImagePlus, Pencil, Plus, Star, Trash2, X } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FormProvider, useForm } from "react-hook-form";
+import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
+import { MediaPickerDialog } from "@/components/admin/MediaPickerDialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { TextField } from "@/components/ui/text-field";
 import { TextareaField } from "@/components/ui/textarea-field";
 import { deleteCategoryAction, saveCategoryAction } from "@/server/actions/admin-categories";
@@ -22,6 +26,11 @@ import { deleteCategoryAction, saveCategoryAction } from "@/server/actions/admin
  * Admin category CRUD (Phase 9) — same dialog pattern as AddressBook. A new
  * category is immediately routable (/shop/[slug]) because categories are
  * data, not code. Deleting is blocked server-side while products remain.
+ *
+ * The form also owns the homepage presentation fields (featured toggle, sort
+ * order, image + alt): the homepage "Shop by Category" grid renders featured
+ * categories ordered by sortOrder straight from these rows — no code change
+ * needed to add/feature/reorder a category.
  */
 
 export interface CategoryRow {
@@ -31,6 +40,10 @@ export interface CategoryRow {
   description: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
+  image: string | null;
+  imageAlt: string | null;
+  featured: boolean;
+  sortOrder: number;
   productCount: number;
 }
 
@@ -40,6 +53,10 @@ interface CategoryFormValues {
   description: string;
   seoTitle: string;
   seoDescription: string;
+  image: string;
+  imageAlt: string;
+  featured: boolean;
+  sortOrder: number;
 }
 
 export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
@@ -78,21 +95,45 @@ export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
         {categories.map((category) => (
           <li
             key={category.id}
-            className="border-border flex flex-col justify-between gap-3 rounded-lg border p-5"
+            className="border-border flex justify-between gap-4 rounded-lg border p-5"
           >
-            <div>
-              <p className="text-foreground-primary font-heading text-sm">{category.name}</p>
-              <p className="text-foreground-muted mt-0.5 text-xs">
-                /shop/{category.slug} · {category.productCount} product
-                {category.productCount === 1 ? "" : "s"}
-              </p>
-              {category.description && (
-                <p className="text-foreground-muted mt-2 line-clamp-2 text-sm">
-                  {category.description}
+            <div className="flex min-w-0 gap-4">
+              <div className="bg-background-raised relative size-14 shrink-0 overflow-hidden rounded-md">
+                {category.image ? (
+                  <Image
+                    src={category.image}
+                    alt={category.imageAlt ?? category.name}
+                    fill
+                    sizes="56px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <span className="text-foreground-muted flex h-full items-center justify-center text-[10px]">
+                    No image
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-foreground-primary font-heading flex items-center gap-1.5 text-sm">
+                  {category.name}
+                  {category.featured && (
+                    <span className="text-accent-crimson inline-flex items-center gap-1 text-[10px] tracking-wide uppercase">
+                      <Star className="size-3 fill-current" /> Featured
+                    </span>
+                  )}
                 </p>
-              )}
+                <p className="text-foreground-muted mt-0.5 text-xs">
+                  /shop/{category.slug} · {category.productCount} product
+                  {category.productCount === 1 ? "" : "s"} · order {category.sortOrder}
+                </p>
+                {category.description && (
+                  <p className="text-foreground-muted mt-2 line-clamp-2 text-sm">
+                    {category.description}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex shrink-0 flex-col gap-2">
               <Button size="sm" variant="outline" onClick={() => setEditing(category)}>
                 <Pencil className="size-3.5" /> Edit
               </Button>
@@ -157,8 +198,20 @@ export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
   );
 }
 
+/** Live preview of the currently-selected homepage image. */
+function CategoryImagePreview() {
+  const url = useWatch({ name: "image" }) as string;
+  if (!url || !(url.startsWith("/") || url.startsWith("http"))) return null;
+  return (
+    <div className="bg-background-raised relative size-20 shrink-0 overflow-hidden rounded-md">
+      <Image src={url} alt="" fill sizes="80px" className="object-cover" />
+    </div>
+  );
+}
+
 function CategoryForm({ category, onDone }: { category: CategoryRow | null; onDone: () => void }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const form = useForm<CategoryFormValues>({
     defaultValues: {
@@ -167,9 +220,14 @@ function CategoryForm({ category, onDone }: { category: CategoryRow | null; onDo
       description: category?.description ?? "",
       seoTitle: category?.seoTitle ?? "",
       seoDescription: category?.seoDescription ?? "",
+      image: category?.image ?? "",
+      imageAlt: category?.imageAlt ?? "",
+      featured: category?.featured ?? false,
+      sortOrder: category?.sortOrder ?? 0,
     },
     mode: "onBlur",
   });
+  const imageValue = useWatch({ control: form.control, name: "image" });
 
   async function onSubmit(values: CategoryFormValues) {
     setIsSubmitting(true);
@@ -192,7 +250,10 @@ function CategoryForm({ category, onDone }: { category: CategoryRow | null; onDo
 
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1"
+      >
         <TextField name="name" label="Name" />
         <TextField
           name="slug"
@@ -200,6 +261,81 @@ function CategoryForm({ category, onDone }: { category: CategoryRow | null; onDo
           description="Lowercase, hyphen-separated — forms the /shop URL"
         />
         <TextareaField name="description" label="Description (optional)" rows={2} />
+
+        {/* Homepage presentation */}
+        <div className="border-border flex flex-col gap-4 rounded-lg border p-4">
+          <p className="text-foreground-primary font-heading text-xs tracking-wide uppercase">
+            Homepage
+          </p>
+
+          <Controller
+            name="featured"
+            render={({ field }) => (
+              <Field orientation="horizontal">
+                <FieldLabel className="flex-row items-center gap-2">
+                  <Checkbox
+                    checked={field.value === true}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                  />
+                  <FieldContent>
+                    <span className="text-foreground-primary text-sm">Feature on homepage</span>
+                    <span className="text-foreground-muted text-xs">
+                      Shown in the homepage “Shop by Category” grid.
+                    </span>
+                  </FieldContent>
+                </FieldLabel>
+              </Field>
+            )}
+          />
+
+          <TextField
+            name="sortOrder"
+            label="Display order"
+            type="number"
+            description="Lower numbers appear first."
+          />
+
+          <div className="flex flex-col gap-1.5">
+            <TextField
+              name="image"
+              label="Homepage image (Media Library path or URL)"
+              placeholder="/uploads/... or https://..."
+            />
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                onClick={() => setPickerOpen(true)}
+              >
+                <ImagePlus className="size-4" /> Choose from Library
+              </Button>
+              {imageValue && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-fit"
+                  onClick={() => {
+                    form.setValue("image", "", { shouldDirty: true });
+                    form.setValue("imageAlt", "", { shouldDirty: true });
+                  }}
+                >
+                  <X className="size-4" /> Clear
+                </Button>
+              )}
+              <CategoryImagePreview />
+            </div>
+          </div>
+
+          <TextField
+            name="imageAlt"
+            label="Image alt text"
+            description="Describes the image for screen readers."
+          />
+        </div>
+
         <TextField name="seoTitle" label="SEO title (optional)" />
         <TextareaField
           name="seoDescription"
@@ -211,6 +347,19 @@ function CategoryForm({ category, onDone }: { category: CategoryRow | null; onDo
           {isSubmitting ? "Saving..." : category ? "Save Category" : "Create Category"}
         </Button>
       </form>
+
+      <MediaPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        kind="IMAGE"
+        folder="categories"
+        title="Select or Upload a Category Image"
+        onSelect={(asset) => {
+          form.setValue("image", asset.url, { shouldDirty: true });
+          if (asset.alt) form.setValue("imageAlt", asset.alt, { shouldDirty: true });
+          setPickerOpen(false);
+        }}
+      />
     </FormProvider>
   );
 }

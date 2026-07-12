@@ -748,10 +748,6 @@ export type EnumProductStatusFieldUpdateOperationsInput = {
   set?: $Enums.ProductStatus
 }
 
-export type BoolFieldUpdateOperationsInput = {
-  set?: boolean
-}
-
 export type EnumShippingClassFieldUpdateOperationsInput = {
   set?: $Enums.ShippingClass
 }

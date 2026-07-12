@@ -12,6 +12,7 @@ export {
   getAllProductSlugPairs,
   getCategories,
   getCategoryBySlug,
+  getFeaturedCategories,
   getFeaturedProducts,
   getProductBySlug,
   getProducts,

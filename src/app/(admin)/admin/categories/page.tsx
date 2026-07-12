@@ -19,6 +19,10 @@ export default async function AdminCategoriesPage() {
         description: category.description,
         seoTitle: category.seoTitle,
         seoDescription: category.seoDescription,
+        image: category.image,
+        imageAlt: category.imageAlt,
+        featured: category.featured,
+        sortOrder: category.sortOrder,
         productCount: category._count.products,
       }))}
     />

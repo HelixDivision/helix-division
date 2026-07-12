@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 
 export async function listCategoriesForAdmin() {
   return db.category.findMany({
-    orderBy: { name: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: { _count: { select: { products: true } } },
   });
 }
@@ -27,6 +27,11 @@ export interface CategoryWriteInput {
   description?: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
+  // Homepage presentation.
+  image?: string | null;
+  imageAlt?: string | null;
+  featured?: boolean;
+  sortOrder?: number;
 }
 
 async function assertSlugAvailable(slug: string, excludeCategoryId?: string) {
@@ -45,6 +50,10 @@ export async function createCategory(input: CategoryWriteInput) {
       description: input.description ?? null,
       seoTitle: input.seoTitle ?? null,
       seoDescription: input.seoDescription ?? null,
+      image: input.image ?? null,
+      imageAlt: input.imageAlt ?? null,
+      featured: input.featured ?? false,
+      sortOrder: input.sortOrder ?? 0,
     },
   });
 }
@@ -59,6 +68,10 @@ export async function updateCategory(categoryId: string, input: CategoryWriteInp
       description: input.description ?? null,
       seoTitle: input.seoTitle ?? null,
       seoDescription: input.seoDescription ?? null,
+      image: input.image ?? null,
+      imageAlt: input.imageAlt ?? null,
+      featured: input.featured ?? false,
+      sortOrder: input.sortOrder ?? 0,
     },
   });
 }

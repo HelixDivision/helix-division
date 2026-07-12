@@ -101,6 +101,14 @@ export const adminCategorySchema = z.object({
   description: optionalText,
   seoTitle: optionalText,
   seoDescription: optionalText,
+  // Homepage presentation. `image` is a Media Library URL ("" → null).
+  image: optionalText,
+  imageAlt: optionalText,
+  featured: z.coerce.boolean().default(false),
+  sortOrder: z.preprocess(
+    (value) => (value === "" || value === null || value === undefined ? 0 : value),
+    z.coerce.number({ error: "Enter a whole number" }).int("Enter a whole number").min(0),
+  ),
 });
 
 export type AdminCategoryInput = z.infer<typeof adminCategorySchema>;

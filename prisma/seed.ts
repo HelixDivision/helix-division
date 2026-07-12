@@ -61,6 +61,13 @@ async function main() {
         slug: category.slug,
         description: category.description,
         attributeSchema: category.attributeSchema,
+        // Homepage presentation — set on create only so re-seeding never wipes
+        // an admin's homepage curation (featured/order/image are managed in the
+        // Admin category form after bootstrap).
+        image: category.image ?? null,
+        imageAlt: category.imageAlt ?? null,
+        featured: category.featured,
+        sortOrder: category.sortOrder,
       },
       update: {
         name: category.name,

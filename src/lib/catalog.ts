@@ -57,6 +57,10 @@ interface PrismaCategoryRow {
   name: string;
   slug: string;
   description: string | null;
+  image: string | null;
+  imageAlt: string | null;
+  featured: boolean;
+  sortOrder: number;
   attributeSchema: unknown;
   parentId: string | null;
 }
@@ -136,6 +140,10 @@ function toCatalogCategory(row: PrismaCategoryRow): CatalogCategory {
     name: row.name,
     slug: row.slug,
     description: row.description ?? undefined,
+    image: row.image ?? undefined,
+    imageAlt: row.imageAlt ?? undefined,
+    featured: row.featured,
+    sortOrder: row.sortOrder,
     attributeSchema: row.attributeSchema as { key: string; label: string }[],
   };
 }
@@ -204,7 +212,23 @@ function toCatalogProduct(row: PrismaProductRow): CatalogProduct {
 }
 
 export async function getCategories(): Promise<CatalogCategory[]> {
-  const rows = await db.category.findMany({ orderBy: { name: "asc" } });
+  const rows = await db.category.findMany({
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
+  return rows.map(toCatalogCategory);
+}
+
+/**
+ * Homepage "Shop by Category" source — featured categories only, ordered by
+ * sortOrder then name. Reads the SAME `categories` table the Admin dashboard
+ * writes to (single source of truth): featuring/creating/deleting a category in
+ * Admin changes this with no code change. Returns [] when none are featured.
+ */
+export async function getFeaturedCategories(): Promise<CatalogCategory[]> {
+  const rows = await db.category.findMany({
+    where: { featured: true },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
   return rows.map(toCatalogCategory);
 }
 

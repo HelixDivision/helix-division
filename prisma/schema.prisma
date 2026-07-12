@@ -138,6 +138,15 @@ model Category {
   // seoTitle/seoDescription so category listing pages can generate metadata).
   seoTitle        String?
   seoDescription  String?
+  // Homepage presentation (managed in the Admin category form). The homepage
+  // "Shop by Category" grid renders ONLY categories with featured = true,
+  // ordered by sortOrder (then name), each with its uploaded `image` (+ alt).
+  // These are data, not code — creating/toggling a category in Admin is all it
+  // takes for the homepage to change. `image` is a Media Library URL.
+  image           String?
+  imageAlt        String?
+  featured        Boolean  @default(false)
+  sortOrder       Int      @default(0)
   // Describes which attribute keys/labels this category's products expose
   // (e.g. [{ "key": "dosage", "label": "Dosage" }] for peptides,
   // [{ "key": "size", "label": "Size" }, { "key": "color", "label": "Color" }]

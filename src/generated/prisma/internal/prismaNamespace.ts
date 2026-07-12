@@ -2768,6 +2768,10 @@ export const CategoryScalarFieldEnum = {
   description: 'description',
   seoTitle: 'seoTitle',
   seoDescription: 'seoDescription',
+  image: 'image',
+  imageAlt: 'imageAlt',
+  featured: 'featured',
+  sortOrder: 'sortOrder',
   attributeSchema: 'attributeSchema',
   createdAt: 'createdAt',
   parentId: 'parentId'
@@ -3260,6 +3264,13 @@ export type ListEnumVerificationPurposeFieldRefInput<$PrismaModel> = FieldRefInp
 
 
 /**
+ * Reference to a field of type 'Boolean'
+ */
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
+
+/**
  * Reference to a field of type 'Json'
  */
 export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
@@ -3284,13 +3295,6 @@ export type EnumProductStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$Pr
  * Reference to a field of type 'ProductStatus[]'
  */
 export type ListEnumProductStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ProductStatus[]'>
-    
-
-
-/**
- * Reference to a field of type 'Boolean'
- */
-export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 

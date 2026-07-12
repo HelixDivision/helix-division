@@ -22,6 +22,12 @@ export interface CatalogCategory {
   /** Self-relation, mirrors Category.parentId — lets a category be a subcategory of another. */
   parentSlug?: string;
   attributeSchema: { key: string; label: string }[];
+  // Homepage presentation (Admin-managed). The homepage grid renders only
+  // `featured` categories, ordered by `sortOrder`, using `image` (+ `imageAlt`).
+  image?: string;
+  imageAlt?: string;
+  featured: boolean;
+  sortOrder: number;
 }
 
 export interface CatalogVariant {

@@ -15,6 +15,10 @@ export const categories: CatalogCategory[] = [
     name: "Research Peptides",
     slug: "research-peptides",
     description: "Lab-verified peptides for in-vitro research use.",
+    image: "/branding/source/mockup-product-grid.jpeg",
+    imageAlt: "Research peptides",
+    featured: true,
+    sortOrder: 0,
     attributeSchema: [{ key: "dosage", label: "Dosage" }],
   },
   {
@@ -22,6 +26,8 @@ export const categories: CatalogCategory[] = [
     name: "Laboratory Supplies",
     slug: "laboratory-supplies",
     description: "Reconstitution and handling supplies for research use.",
+    featured: true,
+    sortOrder: 1,
     attributeSchema: [{ key: "volume", label: "Volume" }],
   },
   {
@@ -29,6 +35,8 @@ export const categories: CatalogCategory[] = [
     name: "Accessories",
     slug: "accessories",
     description: "Research-lab accessories and hardware.",
+    featured: true,
+    sortOrder: 2,
     attributeSchema: [{ key: "type", label: "Type" }],
   },
   {
@@ -36,6 +44,8 @@ export const categories: CatalogCategory[] = [
     name: "Merchandise",
     slug: "merchandise",
     description: "Helix Division apparel and branded goods.",
+    featured: true,
+    sortOrder: 3,
     attributeSchema: [
       { key: "size", label: "Size" },
       { key: "color", label: "Color" },

@@ -175,6 +175,10 @@ export const CategoryScalarFieldEnum = {
   description: 'description',
   seoTitle: 'seoTitle',
   seoDescription: 'seoDescription',
+  image: 'image',
+  imageAlt: 'imageAlt',
+  featured: 'featured',
+  sortOrder: 'sortOrder',
   attributeSchema: 'attributeSchema',
   createdAt: 'createdAt',
   parentId: 'parentId'
